@@ -1,0 +1,14 @@
+package com.lm.hospital.repository;
+
+import com.lm.hospital.model.LMPatient;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
+import java.util.Optional;
+
+public interface LMPatientRepository extends JpaRepository<LMPatient, Long> {
+    Optional<LMPatient> findByPatientId(String patientId);
+    List<LMPatient> findByAssignedDoctorId(Long doctorId);
+    List<LMPatient> findByUserId(Long userId);
+    List<LMPatient> findByFullNameContainingIgnoreCase(String name);
+    long countByStatus(com.lm.hospital.model.LMPatientStatus status);
+}
