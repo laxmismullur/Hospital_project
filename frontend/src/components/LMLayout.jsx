@@ -2,22 +2,25 @@ import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useLMAuth } from '../context/LMAuthContext';
 import {
-  LayoutDashboard, Users, CalendarDays, FileText,
-  Stethoscope, LogOut, Menu, X, Bell, ChevronDown, Activity, DollarSign
+  CalendarDays,
+  DollarSign,
+  FileText,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Stethoscope,
+  Users,
+  X
 } from 'lucide-react';
 
 const NAV = [
-  { path: '/',                icon: LayoutDashboard, label: 'Dashboard',       roles: ['ADMIN','DOCTOR','NURSE','RECEPTIONIST','PATIENT'] },
-  { path: '/doctors',         icon: Stethoscope,     label: 'Doctors',         roles: ['ADMIN'] },
-  { path: '/patients',        icon: Users,           label: 'Patients',        roles: ['ADMIN','DOCTOR','NURSE','RECEPTIONIST','PATIENT'] },
-
-  // ✅ FIXED: PATIENT ADDED HERE
-  { path: '/appointments',    icon: CalendarDays,    label: 'Appointments',    roles: ['ADMIN','DOCTOR','NURSE','RECEPTIONIST','PATIENT'] },
-
-  { path: '/medical-records', icon: FileText,        label: 'Medical Records', roles: ['ADMIN','DOCTOR','NURSE'] },
-  { path: '/billing',         icon: DollarSign,      label: 'Billing',         roles: ['ADMIN','RECEPTIONIST'] },
-  { path: '/notifications',   icon: Bell,            label: 'Notifications',   roles: ['PATIENT'] },
-  { path: '/add-staff', label: 'Add Staff', icon: Users, roles: ['ADMIN'] },
+  { path: '/', icon: LayoutDashboard, label: 'Dashboard', roles: ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'] },
+  //{ path: '/doctors', icon: Stethoscope, label: 'Doctors', roles: ['ADMIN'] },
+  { path: '/patients', icon: Users, label: 'Patients', patientLabel: 'My Profile', roles: ['DOCTOR', 'NURSE', 'RECEPTIONIST', 'PATIENT'] },
+  { path: '/appointments', icon: CalendarDays, label: 'Appointments', roles: ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PATIENT'] },
+  { path: '/medical-records', icon: FileText, label: 'Medical Records', roles: ['ADMIN', 'DOCTOR', 'NURSE', 'PATIENT'] },
+  { path: '/billing', icon: DollarSign, label: 'Billing', roles: ['ADMIN', 'RECEPTIONIST', 'PATIENT'] },
+  { path: '/add-staff', icon: Users, label: 'Registration', roles: ['ADMIN'] },
 ];
 
 const ROLE_COLOR = {
@@ -31,117 +34,101 @@ const ROLE_COLOR = {
 export default function LMLayout() {
   const { user, logout } = useLMAuth();
   const navigate = useNavigate();
-
   const [collapsed, setCollapsed] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const roleColor = ROLE_COLOR[user?.role] || '#f59e0b';
-
-  const initials =
-    user?.fullName
-      ?.split(' ')
-      .map(w => w[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase() || 'LM';
-
-  // ✅ FILTER BASED ON ROLE
   const allowed = NAV.filter(n => n.roles.includes(user?.role));
+  const initials = user?.fullName
+    ?.split(' ')
+    .map(w => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'LM';
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
+  const closeMobileNav = () => setMobileOpen(false);
+
   return (
-    <div style={{ display: 'flex', height: '100vh' }}>
+    <div className={`lm-app-shell ${collapsed ? 'is-collapsed' : ''} ${mobileOpen ? 'mobile-nav-open' : ''}`}>
+      {mobileOpen && <button className="lm-mobile-scrim" aria-label="Close navigation" onClick={closeMobileNav} />}
 
-      {/* SIDEBAR */}
-      <aside style={{
-        width: collapsed ? '64px' : '220px',
-        background: '#0a0f18',
-        borderRight: '1px solid #1e2a3a',
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
-
-        {/* LOGO */}
-        <div style={{
-          height: '64px',
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0 12px',
-          borderBottom: '1px solid #1e2a3a'
-        }}>
-          <strong style={{ color: '#fff' }}>LM</strong>
-          {!collapsed && <span style={{ marginLeft: '10px', color: '#fff' }}>Hospital</span>}
+      <aside className="lm-sidebar">
+        <div className="lm-brand">
+          <div className="lm-brand-mark">LM</div>
+          <div className="lm-brand-copy">
+            <strong>LM Hospital</strong>
+            <span>Management</span>
+          </div>
         </div>
 
-        {/* MENU */}
-        <nav style={{ flex: 1, padding: '10px' }}>
-          {allowed.map(({ path, icon: Icon, label }) => (
-            <NavLink
-              key={path}
-              to={path}
-              style={({ isActive }) => ({
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '8px',
-                marginBottom: '5px',
-                textDecoration: 'none',
-                color: isActive ? '#fff' : '#5a7394',
-                background: isActive ? '#1a2535' : 'transparent',
-                borderRadius: '6px'
-              })}
-            >
-              <Icon size={16} />
-              {!collapsed && label}
-            </NavLink>
-          ))}
+        <nav className="lm-nav" aria-label="Main navigation">
+          {allowed.map(({ path, icon: Icon, label, patientLabel }) => {
+            const displayLabel = user?.role === 'PATIENT' && patientLabel ? patientLabel : label;
+
+            return (
+              <NavLink
+                key={path}
+                to={path}
+                end={path === '/'}
+                onClick={closeMobileNav}
+                className={({ isActive }) => `lm-nav-link ${isActive ? 'active' : ''}`}
+                title={displayLabel}
+              >
+                <Icon size={18} />
+                <span>{displayLabel}</span>
+              </NavLink>
+            );
+          })}
         </nav>
 
-        {/* LOGOUT */}
-        <button onClick={handleLogout} style={{
-          margin: '10px',
-          padding: '8px',
-          background: 'none',
-          border: '1px solid #ef4444',
-          color: '#ef4444',
-          cursor: 'pointer',
-          borderRadius: '6px'
-        }}>
-          Logout
+        <button className="lm-logout" onClick={handleLogout}>
+          <LogOut size={17} />
+          <span>Logout</span>
         </button>
-
       </aside>
 
-      {/* MAIN */}
-      <div style={{ flex: 1 }}>
-
-        {/* HEADER */}
-        <header style={{
-          height: '60px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 20px',
-          borderBottom: '1px solid #1e2a3a'
-        }}>
-          <button onClick={() => setCollapsed(!collapsed)}>
-            {collapsed ? <Menu size={18}/> : <X size={18}/>}
+      <div className="lm-main">
+        <header className="lm-topbar">
+          <button
+            className="lm-icon-button lm-desktop-toggle"
+            onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <Menu size={19} /> : <X size={19} />}
           </button>
 
-          <div>
-            {user?.fullName} ({user?.role})
+          <button
+            className="lm-icon-button lm-mobile-toggle"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open navigation"
+          >
+            <Menu size={20} />
+          </button>
+
+          <div className="lm-mobile-title">
+            <strong>LM Hospital</strong>
+            <span>{user?.role}</span>
+          </div>
+
+          <div className="lm-user-chip">
+            <div className="lm-avatar" style={{ borderColor: roleColor, color: roleColor }}>
+              {initials}
+            </div>
+            <div className="lm-user-meta">
+              <strong>{user?.fullName}</strong>
+              <span>{user?.role}</span>
+            </div>
           </div>
         </header>
 
-        {/* PAGE CONTENT */}
-        <main style={{ padding: '20px' }}>
+        <main className="lm-content">
           <Outlet />
         </main>
-
       </div>
     </div>
   );

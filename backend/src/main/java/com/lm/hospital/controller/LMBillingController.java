@@ -1,10 +1,14 @@
 package com.lm.hospital.controller;
 
-import com.lm.hospital.model.LMBilling;
-import com.lm.hospital.model.LMPaymentStatus;
+import com.lm.hospital.model.*;
 import com.lm.hospital.repository.LMBillingRepository;
+import com.lm.hospital.repository.LMNotificationRepository;
+import com.lm.hospital.repository.LMPatientRepository;
+import com.lm.hospital.repository.LMUserRepository;
+import com.lm.hospital.service.LMEmailNotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -18,9 +22,25 @@ public class LMBillingController {
 
     @Autowired
     private LMBillingRepository billingRepository;
+    @Autowired
+    private LMPatientRepository patientRepository;
+    @Autowired
+    private LMUserRepository userRepository;
+    @Autowired
+    private LMNotificationRepository notificationRepository;
+    @Autowired
+    private LMEmailNotificationService emailNotificationService;
 
     @GetMapping
-    public List<LMBilling> getAllBills() {
+    public List<LMBilling> getAllBills(Authentication authentication) {
+        LMUser user = getCurrentUser(authentication);
+        if (user.getRole() == LMRole.PATIENT) {
+            List<Long> patientIds = patientRepository.findByUserId(user.getId()).stream()
+                    .map(LMPatient::getId)
+                    .toList();
+            if (patientIds.isEmpty()) return List.of();
+            return billingRepository.findByPatientIdIn(patientIds);
+        }
         return billingRepository.findAll();
     }
 
@@ -42,28 +62,43 @@ public class LMBillingController {
     }
 
     @PostMapping
-    public ResponseEntity<LMBilling> createBill(@RequestBody LMBilling billing) {
+    public ResponseEntity<LMBilling> createBill(@RequestBody LMBilling billing, Authentication authentication) {
         billing.setInvoiceNumber("LM-INV-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
-        return ResponseEntity.ok(billingRepository.save(billing));
+        LMUser sender = getCurrentUser(authentication);
+        LMBilling saved = billingRepository.save(billing);
+        sendPatientNotification(saved.getPatientId(), sender, "Billing Created",
+                "A new bill " + saved.getInvoiceNumber() + " has been created for you.",
+                LMNotificationType.BILLING_UPDATE, saved.getId());
+        return ResponseEntity.ok(saved);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<LMBilling> updateBill(@PathVariable Long id, @RequestBody LMBilling billing) {
+    public ResponseEntity<LMBilling> updateBill(@PathVariable Long id,
+                                                @RequestBody LMBilling billing,
+                                                Authentication authentication) {
         return billingRepository.findById(id).map(existing -> {
             billing.setId(id);
             billing.setInvoiceNumber(existing.getInvoiceNumber());
             billing.setCreatedAt(existing.getCreatedAt());
-            return ResponseEntity.ok(billingRepository.save(billing));
+            LMBilling saved = billingRepository.save(billing);
+            sendPatientNotification(saved.getPatientId(), getCurrentUser(authentication), "Billing Updated",
+                    "Your bill " + saved.getInvoiceNumber() + " has been updated.",
+                    LMNotificationType.BILLING_UPDATE, saved.getId());
+            return ResponseEntity.ok(saved);
         }).orElse(ResponseEntity.notFound().build());
     }
 
     @PatchMapping("/{id}/pay")
-    public ResponseEntity<LMBilling> markAsPaid(@PathVariable Long id) {
+    public ResponseEntity<LMBilling> markAsPaid(@PathVariable Long id, Authentication authentication) {
         return billingRepository.findById(id).map(b -> {
             b.setPaymentStatus(LMPaymentStatus.PAID);
             b.setPaidAmount(b.getTotalAmount());
             b.setPaidAt(LocalDateTime.now());
-            return ResponseEntity.ok(billingRepository.save(b));
+            LMBilling saved = billingRepository.save(b);
+            sendPatientNotification(saved.getPatientId(), getCurrentUser(authentication), "Payment Updated",
+                    "Your bill " + saved.getInvoiceNumber() + " has been marked as paid.",
+                    LMNotificationType.BILLING_UPDATE, saved.getId());
+            return ResponseEntity.ok(saved);
         }).orElse(ResponseEntity.notFound().build());
     }
 
@@ -73,5 +108,19 @@ public class LMBillingController {
             billingRepository.delete(b);
             return ResponseEntity.ok().build();
         }).orElse(ResponseEntity.notFound().build());
+    }
+
+    private LMUser getCurrentUser(Authentication authentication) {
+        return userRepository.findByUsername(authentication.getName())
+                .orElseGet(() -> userRepository.findByEmail(authentication.getName())
+                        .orElseThrow(() -> new RuntimeException("User not found")));
+    }
+
+    private void sendPatientNotification(Long patientId, LMUser sender, String title, String message,
+                                         LMNotificationType type, Long referenceId) {
+        patientRepository.findById(patientId)
+                .ifPresent(patient -> {
+                    emailNotificationService.sendPatientEmail(patient, title, message);
+                });
     }
 }

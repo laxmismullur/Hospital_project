@@ -16,8 +16,12 @@ const EMPTY = {
   followUpDate: ''
 };
 
-function LMRecordModal({ record, patients, doctors, onClose, onSave }) {
-  const [form, setForm] = useState(record || EMPTY);
+function LMRecordModal({ record, patients, doctors, currentDoctor, onClose, onSave }) {
+  const [form, setForm] = useState(record || {
+    ...EMPTY,
+    doctorId: currentDoctor?.id || '',
+    doctorName: currentDoctor?.fullName || ''
+  });
   const [saving, setSaving] = useState(false);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -204,14 +208,72 @@ function LMRecordModal({ record, patients, doctors, onClose, onSave }) {
   );
 }
 
+function LMTreatmentModal({ record, onClose, onSave }) {
+  const [form, setForm] = useState({
+    prescription: record?.prescription || '',
+    notes: record?.notes || '',
+    followUpDate: record?.followUpDate || ''
+  });
+  const [saving, setSaving] = useState(false);
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await LMApi.updateMedicalRecord(record.id, { ...record, ...form });
+      onSave();
+    } catch (err) {
+      console.error(err);
+      alert('Error saving treatment');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: '560px' }}>
+        <div className="modal-header">
+          <h3>Add Treatment</h3>
+          <button className="close-btn" onClick={onClose}><X size={16} /></button>
+        </div>
+        <div className="modal-body">
+          <div className="form-group">
+            <label>Prescription / Treatment</label>
+            <textarea rows={4} value={form.prescription} onChange={e => set('prescription', e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label>Clinical Notes</label>
+            <textarea rows={4} value={form.notes} onChange={e => set('notes', e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label>Follow-up Date</label>
+            <input type="date" value={form.followUpDate || ''} onChange={e => set('followUpDate', e.target.value)} />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving...' : 'Save Treatment'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LMMedicalRecords() {
   const { user } = useLMAuth();
+  const isDoctor = user?.role === 'DOCTOR';
+  const isNurse = user?.role === 'NURSE';
   const [records, setRecords] = useState([]);
   const [patients, setPatients] = useState([]);
   const [doctors, setDoctors] = useState([]);
+  const [currentDoctor, setCurrentDoctor] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
+  const [treatmentModal, setTreatmentModal] = useState(null);
   const [viewRecord, setViewRecord] = useState(null);
 
   // ✅ FIXED LOAD FUNCTION
@@ -220,14 +282,16 @@ export default function LMMedicalRecords() {
       const [r, p, d] = await Promise.all([
         LMApi.getMedicalRecords(),
         LMApi.getPatients(),
-        LMApi.getDoctors()
+        isDoctor ? LMApi.getMyDoctorProfile() : LMApi.getDoctors()
       ]);
 
       setRecords(r.data);
       setPatients(p.data);
 
       // ✅ Only active doctors (optional)
-      setDoctors(d.data.filter(doc => doc.active));
+      const doctorList = isDoctor ? [d.data] : d.data.filter(doc => doc.active);
+      setDoctors(doctorList);
+      setCurrentDoctor(isDoctor ? d.data : null);
 
     } catch (err) {
       console.error("Error loading:", err);
@@ -236,7 +300,7 @@ export default function LMMedicalRecords() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [user?.role]);
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this record?')) return;
@@ -259,7 +323,7 @@ export default function LMMedicalRecords() {
           <div className="page-title">Medical Records</div>
           <div className="page-subtitle">Track patient diagnostics, prescriptions, and follow-up notes</div>
         </div>
-        {user?.role === 'DOCTOR' && (
+        {isNurse && (
           <button className="btn btn-primary" onClick={() => setModal({})}>
             <Plus size={16} /> New Record
           </button>
@@ -296,7 +360,12 @@ export default function LMMedicalRecords() {
                 <button className="btn btn-sm btn-ghost" onClick={() => setViewRecord(r)}>
                   <Eye size={14} /> View
                 </button>
-                {user?.role === 'DOCTOR' && (
+                {isDoctor && (
+                  <button className="btn btn-sm btn-primary" onClick={() => setTreatmentModal(r)}>
+                    <Edit2 size={14} /> Treatment
+                  </button>
+                )}
+                {isNurse && (
                   <>
                     <button className="btn btn-sm btn-ghost" onClick={() => setModal(r)}>
                       <Edit2 size={14} /> Edit
@@ -318,9 +387,21 @@ export default function LMMedicalRecords() {
           record={modal.id ? modal : null}
           patients={patients}
           doctors={doctors}
+          currentDoctor={currentDoctor}
           onClose={() => setModal(null)}
           onSave={() => {
             setModal(null);
+            load();
+          }}
+        />
+      )}
+
+      {treatmentModal && (
+        <LMTreatmentModal
+          record={treatmentModal}
+          onClose={() => setTreatmentModal(null)}
+          onSave={() => {
+            setTreatmentModal(null);
             load();
           }}
         />

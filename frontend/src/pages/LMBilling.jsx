@@ -394,7 +394,7 @@ function LMBillingView({ billing, onClose, onMarkPaid }) {
 
 export default function LMBilling() {
   const { user } = useLMAuth();
-  const canManageBilling = ['ADMIN', 'RECEPTIONIST'].includes(user?.role);
+  const canManageBilling = user?.role === 'RECEPTIONIST';
 
   const [billings, setBillings] = useState([]);
   const [patients, setPatients] = useState([]);

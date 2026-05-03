@@ -22,46 +22,33 @@ public class LMDataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        if (userRepository.count() == 0) {
-            seedUsers();
-        } else {
-            ensurePatientUser();
-        }
+        ensureAdminUser();
         seedDoctors();
         seedPatients();
         seedAppointments();
         seedMedicalRecords();
     }
 
-    private void seedUsers() {
-        userRepository.save(LMUser.builder()
-                .username("lm_admin").password(passwordEncoder.encode("admin123"))
-                .fullName("Admin Kumar").email("admin@lmhospital.com")
-                .role(LMRole.ADMIN).phone("+91-9876543210").build());
+    private void ensureAdminUser() {
+        LMUser admin = userRepository.findByUsername("lm_admin")
+                .or(() -> userRepository.findByEmail("admin@lmhospital.com"))
+                .orElseGet(() -> LMUser.builder()
+                        .username("lm_admin")
+                        .fullName("Admin Kumar")
+                        .email("admin@lmhospital.com")
+                        .phone("+91-9876543210")
+                        .role(LMRole.ADMIN)
+                        .build());
 
-        userRepository.save(LMUser.builder()
-                .username("lm_nurse").password(passwordEncoder.encode("nurse123"))
-                .fullName("Anita Singh").email("anita.singh@lmhospital.com")
-                .role(LMRole.NURSE).phone("+91-9876543213").build());
+        admin.setUsername("lm_admin");
+        admin.setPassword(passwordEncoder.encode("admin123"));
+        admin.setFullName("Admin Kumar");
+        admin.setEmail("admin@lmhospital.com");
+        admin.setRole(LMRole.ADMIN);
+        admin.setPhone("+91-9876543210");
+        admin.setActive(true);
 
-        userRepository.save(LMUser.builder()
-                .username("lm_reception").password(passwordEncoder.encode("recep123"))
-                .fullName("Kavita Reddy").email("kavita.reddy@lmhospital.com")
-                .role(LMRole.RECEPTIONIST).phone("+91-9876543214").build());
-
-        userRepository.save(LMUser.builder()
-                .username("lm_patient").password(passwordEncoder.encode("patient123"))
-                .fullName("Arjun Mehta").email("arjun.mehta@email.com")
-                .role(LMRole.PATIENT).phone("+91-9123456789").build());
-    }
-
-    private void ensurePatientUser() {
-        if (!userRepository.existsByUsername("lm_patient") && !userRepository.existsByEmail("arjun.mehta@email.com")) {
-            userRepository.save(LMUser.builder()
-                    .username("lm_patient").password(passwordEncoder.encode("patient123"))
-                    .fullName("Arjun Mehta").email("arjun.mehta@email.com")
-                    .role(LMRole.PATIENT).phone("+91-9123456789").build());
-        }
+        userRepository.save(admin);
     }
 
     private void seedDoctors() {
@@ -96,29 +83,12 @@ public class LMDataInitializer implements CommandLineRunner {
                 .email("arjun.nair@lmhospital.com").experience("10 years")
                 .consultationFee("900").availability("Mon-Fri 8AM-2PM")
                 .active(true).build());
-
-        // Seed doctor login accounts
-        saveUserIfMissing("lm_doctor", "priya.sharma@lmhospital.com",
-                "Dr. Priya Sharma", LMRole.DOCTOR, "+91-9876543211", "doctor123");
-
-        saveUserIfMissing("lm_doctor2", "rahul.verma@lmhospital.com",
-                "Dr. Rahul Verma", LMRole.DOCTOR, "+91-9876543212", "doctor123");
     }
 
     private void saveDoctorIfMissing(LMDoctor doctor) {
         if (!doctorRepository.existsByDoctorCode(doctor.getDoctorCode())
                 && !doctorRepository.existsByEmail(doctor.getEmail())) {
             doctorRepository.save(doctor);
-        }
-    }
-
-    private void saveUserIfMissing(String username, String email, String fullName,
-                                   LMRole role, String phone, String rawPassword) {
-        if (!userRepository.existsByUsername(username) && !userRepository.existsByEmail(email)) {
-            userRepository.save(LMUser.builder()
-                    .username(username).password(passwordEncoder.encode(rawPassword))
-                    .fullName(fullName).email(email)
-                    .role(role).phone(phone).build());
         }
     }
 
@@ -134,6 +104,7 @@ public class LMDataInitializer implements CommandLineRunner {
                 .address("12, MG Road, Bengaluru").allergies("Penicillin")
                 .status(LMPatientStatus.ACTIVE).assignedDoctorId(1L)
                 .assignedDoctorName("Dr. Priya Sharma").assignedDoctorCode("LMD-001")
+                .assignedDoctorSpecialization("Cardiology")
                 .emergencyContact("+91-9123456700").build());
 
         patientRepository.save(LMPatient.builder()
@@ -143,6 +114,7 @@ public class LMDataInitializer implements CommandLineRunner {
                 .address("45, Koramangala, Bengaluru").allergies("None")
                 .status(LMPatientStatus.ADMITTED).assignedDoctorId(1L)
                 .assignedDoctorName("Dr. Priya Sharma").assignedDoctorCode("LMD-001")
+                .assignedDoctorSpecialization("Cardiology")
                 .emergencyContact("+91-9234567800").build());
 
         patientRepository.save(LMPatient.builder()
@@ -152,6 +124,7 @@ public class LMDataInitializer implements CommandLineRunner {
                 .address("78, Indiranagar, Bengaluru").allergies("Aspirin")
                 .status(LMPatientStatus.CRITICAL).assignedDoctorId(2L)
                 .assignedDoctorName("Dr. Rahul Verma").assignedDoctorCode("LMD-002")
+                .assignedDoctorSpecialization("Neurology")
                 .emergencyContact("+91-9345678900").build());
 
         patientRepository.save(LMPatient.builder()
@@ -161,6 +134,7 @@ public class LMDataInitializer implements CommandLineRunner {
                 .address("23, Whitefield, Bengaluru").allergies("None")
                 .status(LMPatientStatus.STABLE).assignedDoctorId(2L)
                 .assignedDoctorName("Dr. Rahul Verma").assignedDoctorCode("LMD-002")
+                .assignedDoctorSpecialization("Neurology")
                 .emergencyContact("+91-9456789000").build());
 
         patientRepository.save(LMPatient.builder()
@@ -170,6 +144,7 @@ public class LMDataInitializer implements CommandLineRunner {
                 .address("5, HSR Layout, Bengaluru").allergies("Codeine")
                 .status(LMPatientStatus.DISCHARGED).assignedDoctorId(1L)
                 .assignedDoctorName("Dr. Priya Sharma").assignedDoctorCode("LMD-001")
+                .assignedDoctorSpecialization("Cardiology")
                 .emergencyContact("+91-9567890100").build());
     }
 

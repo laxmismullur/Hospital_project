@@ -1,6 +1,7 @@
 package com.lm.hospital.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import lombok.*;
@@ -23,9 +24,11 @@ public class LMPatient {
     private String patientId;
 
     @NotBlank(message = "Full name is required")
+    @Pattern(regexp = "^[A-Za-z][A-Za-z\\s.'-]{2,}$", message = "Patient name must contain only letters and be at least 3 characters")
     @Column(nullable = false)
     private String fullName;
 
+    @Past(message = "Date of birth must be a past date")
     private LocalDate dateOfBirth;
     private String gender;
     private String bloodGroup;
@@ -51,10 +54,17 @@ public class LMPatient {
     // Link to user account (for patient self-management)
     private Long userId;
 
+    @Transient
+    private String username;
+
+    @Transient
+    private String password;
+
     // Link to a doctor from lm_doctors table
     private Long assignedDoctorId;
     private String assignedDoctorName;
     private String assignedDoctorCode;
+    private String assignedDoctorSpecialization;
 
     // Insurance / admin info
     private String insuranceProvider;

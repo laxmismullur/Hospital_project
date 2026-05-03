@@ -10,4 +10,6 @@ import java.util.List;
 public interface LMAddStaffRepository extends JpaRepository<Staff, Long> {
 
      List<Staff> findByRoleIgnoreCase(String role);
+     boolean existsByUsername(String username);
+     boolean existsByEmail(String email);
 }

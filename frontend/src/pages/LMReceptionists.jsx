@@ -9,21 +9,43 @@ import {
 // ───────── EMPTY ─────────
 const EMPTY = {
   fullName: '',
+  username: '',
+  password: '',
   phone: '',
   email: '',
   department: '',
   active: true
 };
 
+const NAME_RE = /^[A-Za-z][A-Za-z\s.'-]{2,}$/;
+const PHONE_RE = /^(?:\+91[-\s]?)?[6-9]\d{9}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 // ───────── MODAL ─────────
 function ReceptionistModal({ data, onClose, onSave }) {
-  const [form, setForm] = useState(data || EMPTY);
+  const [form, setForm] = useState({ ...(data || EMPTY), password: '' });
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const handleSave = async () => {
-    if (!form.fullName || !form.phone) {
-      alert("Name & phone required");
+    if (!form.fullName || !form.username || !form.email || !form.phone) {
+      alert("Name, username, email and phone are required");
+      return;
+    }
+    if (!NAME_RE.test(form.fullName.trim())) {
+      alert("Name must contain only letters and be at least 3 characters");
+      return;
+    }
+    if (!EMAIL_RE.test(form.email.trim())) {
+      alert("Enter a valid email address");
+      return;
+    }
+    if (!PHONE_RE.test(form.phone.trim())) {
+      alert("Enter a valid Indian phone number");
+      return;
+    }
+    if (!data?.id && !form.password) {
+      alert("Password is required");
       return;
     }
 
@@ -46,15 +68,51 @@ function ReceptionistModal({ data, onClose, onSave }) {
         </div>
 
         <div className="modal-body">
-          <input placeholder="Full Name" value={form.fullName} onChange={e => set('fullName', e.target.value)} />
-          <input placeholder="Phone" value={form.phone} onChange={e => set('phone', e.target.value)} />
-          <input placeholder="Email" value={form.email} onChange={e => set('email', e.target.value)} />
-          <input placeholder="Department" value={form.department} onChange={e => set('department', e.target.value)} />
+          <div className="form-row">
+            <div className="form-group">
+              <label>Full Name *</label>
+              <input value={form.fullName} onChange={e => set('fullName', e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>Username *</label>
+              <input value={form.username || ''} onChange={e => set('username', e.target.value)} />
+            </div>
+          </div>
 
-          <label style={{ marginTop: 10 }}>
-            <input type="checkbox" checked={form.active} onChange={e => set('active', e.target.checked)} />
-            Active
-          </label>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Email *</label>
+              <input value={form.email} onChange={e => set('email', e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>Phone *</label>
+              <input value={form.phone} onChange={e => set('phone', e.target.value)} />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>{data?.id ? 'New Password' : 'Password *'}</label>
+              <input
+                type="password"
+                value={form.password || ''}
+                onChange={e => set('password', e.target.value)}
+                placeholder={data?.id ? 'Leave blank to keep current password' : ''}
+              />
+            </div>
+            <div className="form-group">
+              <label>Status</label>
+              <select value={String(form.active)} onChange={e => set('active', e.target.value === 'true')}>
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Department</label>
+            <input value={form.department} onChange={e => set('department', e.target.value)} />
+          </div>
         </div>
 
         <div className="modal-footer">

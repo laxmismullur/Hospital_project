@@ -2,12 +2,12 @@ package com.lm.hospital.controller;
 
 import com.lm.hospital.model.LMNotification;
 import com.lm.hospital.model.LMNotificationType;
+import com.lm.hospital.model.LMRole;
 import com.lm.hospital.model.LMUser;
 import com.lm.hospital.repository.LMNotificationRepository;
 import com.lm.hospital.repository.LMUserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,43 +27,34 @@ public class LMNotificationController {
     private LMUserRepository userRepository;
 
     @GetMapping
-    @PreAuthorize("hasRole('PATIENT')")
     public List<LMNotification> getMyNotifications(Authentication authentication) {
-        String username = authentication.getName();
-        LMUser user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        LMUser user = getCurrentUser(authentication);
         return notificationRepository.findByRecipientIdOrderByCreatedAtDesc(user.getId());
     }
 
     @GetMapping("/unread")
-    @PreAuthorize("hasRole('PATIENT')")
     public List<LMNotification> getUnreadNotifications(Authentication authentication) {
-        String username = authentication.getName();
-        LMUser user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        LMUser user = getCurrentUser(authentication);
         return notificationRepository.findByRecipientIdAndReadFalseOrderByCreatedAtDesc(user.getId());
     }
 
     @GetMapping("/unread-count")
-    @PreAuthorize("hasRole('PATIENT')")
     public ResponseEntity<Map<String, Long>> getUnreadCount(Authentication authentication) {
-        String username = authentication.getName();
-        LMUser user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        LMUser user = getCurrentUser(authentication);
         long count = notificationRepository.countByRecipientIdAndReadFalse(user.getId());
         return ResponseEntity.ok(Map.of("count", count));
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','RECEPTIONIST')")
     public ResponseEntity<LMNotification> sendNotification(
             @RequestBody LMNotification notification,
             Authentication authentication) {
 
         // Set sender information
-        String username = authentication.getName();
-        LMUser sender = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("Sender not found"));
+        LMUser sender = getCurrentUser(authentication);
+        if (!canSendNotification(sender)) {
+            return ResponseEntity.status(403).build();
+        }
 
         notification.setSenderId(sender.getId());
         notification.setSenderName(sender.getFullName());
@@ -78,11 +69,8 @@ public class LMNotificationController {
     }
 
     @PatchMapping("/{id}/read")
-    @PreAuthorize("hasRole('PATIENT')")
     public ResponseEntity<?> markAsRead(@PathVariable Long id, Authentication authentication) {
-        String username = authentication.getName();
-        LMUser user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        LMUser user = getCurrentUser(authentication);
 
         return notificationRepository.findById(id).map(notification -> {
             // Ensure the notification belongs to the current user
@@ -97,11 +85,8 @@ public class LMNotificationController {
     }
 
     @PatchMapping("/mark-all-read")
-    @PreAuthorize("hasRole('PATIENT')")
     public ResponseEntity<?> markAllAsRead(Authentication authentication) {
-        String username = authentication.getName();
-        LMUser user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        LMUser user = getCurrentUser(authentication);
 
         List<LMNotification> unreadNotifications = notificationRepository
                 .findByRecipientIdAndReadFalseOrderByCreatedAtDesc(user.getId());
@@ -117,11 +102,8 @@ public class LMNotificationController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('PATIENT')")
     public ResponseEntity<?> deleteNotification(@PathVariable Long id, Authentication authentication) {
-        String username = authentication.getName();
-        LMUser user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        LMUser user = getCurrentUser(authentication);
 
         return notificationRepository.findById(id).map(notification -> {
             // Ensure the notification belongs to the current user
@@ -132,5 +114,17 @@ public class LMNotificationController {
             notificationRepository.delete(notification);
             return ResponseEntity.ok().build();
         }).orElse(ResponseEntity.notFound().build());
+    }
+
+    private LMUser getCurrentUser(Authentication authentication) {
+        return userRepository.findByUsername(authentication.getName())
+                .orElseGet(() -> userRepository.findByEmail(authentication.getName())
+                        .orElseThrow(() -> new RuntimeException("User not found")));
+    }
+
+    private boolean canSendNotification(LMUser user) {
+        return user != null && (user.getRole() == LMRole.ADMIN
+                || user.getRole() == LMRole.DOCTOR
+                || user.getRole() == LMRole.RECEPTIONIST);
     }
 }

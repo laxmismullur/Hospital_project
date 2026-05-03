@@ -30,6 +30,10 @@ public class LMUserDetailsService implements UserDetailsService {
         return new org.springframework.security.core.userdetails.User(
                 user.getUsername(),
                 user.getPassword(),
+                user.isActive(),
+                true,
+                true,
+                true,
                 Collections.singletonList(
                         new SimpleGrantedAuthority("ROLE_" + role)
                 )

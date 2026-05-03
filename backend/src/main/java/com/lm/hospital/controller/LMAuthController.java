@@ -44,6 +44,7 @@ public class LMAuthController {
 
         // 🔥 IMPORTANT FIX: use SAME identifier everywhere
         LMUser user = userRepository.findByUsername(loginRequest.getUsername())
+                .or(() -> userRepository.findByEmail(loginRequest.getUsername()))
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         String jwt = jwtUtils.generateJwtToken(authentication);

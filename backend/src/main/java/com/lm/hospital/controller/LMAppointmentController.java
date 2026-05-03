@@ -2,6 +2,7 @@ package com.lm.hospital.controller;
 
 import com.lm.hospital.model.*;
 import com.lm.hospital.repository.*;
+import com.lm.hospital.service.LMEmailNotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -22,17 +23,19 @@ public class LMAppointmentController {
     @Autowired private LMPatientRepository patientRepository;
     @Autowired private LMNotificationRepository notificationRepository;
     @Autowired private LMUserRepository userRepository;
+    @Autowired private LMEmailNotificationService emailNotificationService;
 
     // ===================== VIEW =====================
 
     @GetMapping
-    public List<LMAppointment> getAllAppointments() {
-        return appointmentRepository.findAll();
+    public List<LMAppointment> getAllAppointments(Authentication authentication) {
+        return getAppointmentsForCurrentUser(authentication);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<LMAppointment> getById(@PathVariable Long id) {
+    public ResponseEntity<LMAppointment> getById(@PathVariable Long id, Authentication authentication) {
         return appointmentRepository.findById(id)
+                .filter(a -> canAccessAppointment(authentication, a))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -48,36 +51,52 @@ public class LMAppointmentController {
     }
 
     @GetMapping("/today")
-    public List<LMAppointment> getTodayAppointments() {
+    public List<LMAppointment> getTodayAppointments(Authentication authentication) {
         LocalDateTime start = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
         LocalDateTime end = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
+
+        LMUser user = getCurrentUser(authentication);
+        if (user.getRole() == LMRole.DOCTOR) {
+            LMDoctor doctor = getDoctorProfile(user);
+            return appointmentRepository.findByDoctorIdAndAppointmentDateBetween(doctor.getId(), start, end);
+        }
+        if (user.getRole() == LMRole.PATIENT) {
+            List<Long> patientIds = getCurrentPatientIds(user);
+            if (patientIds.isEmpty()) return List.of();
+            return appointmentRepository.findByPatientIdIn(patientIds).stream()
+                    .filter(a -> !a.getAppointmentDate().isBefore(start) && !a.getAppointmentDate().isAfter(end))
+                    .toList();
+        }
         return appointmentRepository.findByAppointmentDateBetween(start, end);
     }
 
     @GetMapping("/upcoming")
-    public List<LMAppointment> getUpcoming() {
+    public List<LMAppointment> getUpcoming(Authentication authentication) {
+        LMUser user = getCurrentUser(authentication);
+        if (user.getRole() == LMRole.DOCTOR) {
+            LMDoctor doctor = getDoctorProfile(user);
+            return appointmentRepository.findByDoctorIdAndAppointmentDateAfterAndStatusNot(
+                    doctor.getId(), LocalDateTime.now(), LMAppointmentStatus.CANCELLED);
+        }
+        if (user.getRole() == LMRole.PATIENT) {
+            List<Long> patientIds = getCurrentPatientIds(user);
+            if (patientIds.isEmpty()) return List.of();
+            return appointmentRepository.findByPatientIdInAndAppointmentDateAfterAndStatusNot(
+                    patientIds, LocalDateTime.now(), LMAppointmentStatus.CANCELLED);
+        }
         return appointmentRepository.findByAppointmentDateAfterAndStatusNot(
                 LocalDateTime.now(), LMAppointmentStatus.CANCELLED);
     }
 
-    @GetMapping("/user")
+    @GetMapping({"/user", "/my"})
     public List<LMAppointment> getMyAppointments(Authentication authentication) {
-        if (authentication == null) return List.of();
-
-        String username = authentication.getName();
-        LMUser user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        List<LMPatient> patients = patientRepository.findByUserId(user.getId());
-        if (patients.isEmpty()) return List.of();
-
-        return appointmentRepository.findByPatientId(patients.get(0).getId());
+        return getAppointmentsForCurrentUser(authentication);
     }
 
     // ===================== CREATE =====================
 
     @PostMapping
-    @PreAuthorize("hasRole('PATIENT')")
+    @PreAuthorize("hasAnyRole('ADMIN','RECEPTIONIST','PATIENT')")
     public ResponseEntity<?> createAppointment(@RequestBody LMAppointment appointment,
                                                Authentication authentication) {
 
@@ -86,8 +105,8 @@ public class LMAppointmentController {
         LMUser user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        if (!user.getRole().name().equals("PATIENT")) {
-            return ResponseEntity.status(403).body("Only patient can book appointment");
+        if (!List.of(LMRole.ADMIN, LMRole.RECEPTIONIST, LMRole.PATIENT).contains(user.getRole())) {
+            return ResponseEntity.status(403).body("Only admin, receptionist, or patient can book appointment");
         }
 
         // Auto doctor details
@@ -100,11 +119,32 @@ public class LMAppointmentController {
             });
         }
 
-        // Auto patient details
-        if (appointment.getPatientId() != null) {
-            patientRepository.findById(appointment.getPatientId()).ifPresent(p ->
-                    appointment.setPatientName(p.getFullName()));
+        LMPatient patient;
+        if (user.getRole() == LMRole.PATIENT) {
+            List<LMPatient> currentPatients = patientRepository.findByUserId(user.getId());
+            if (currentPatients.isEmpty()) {
+                return ResponseEntity.status(403).body("Create your patient profile before booking an appointment");
+            }
+
+            patient = currentPatients.stream()
+                    .filter(p -> p.getId().equals(appointment.getPatientId()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (patient == null) {
+                return ResponseEntity.status(403).body("Appointment patient must belong to the logged-in user");
+            }
+        } else {
+            if (appointment.getPatientId() == null) {
+                return ResponseEntity.badRequest().body("Patient is required");
+            }
+            patient = patientRepository.findById(appointment.getPatientId())
+                    .orElseThrow(() -> new RuntimeException("Patient not found"));
         }
+
+        appointment.setPatientId(patient.getId());
+        appointment.setPatientName(patient.getFullName());
+        appointment.setStatus(LMAppointmentStatus.SCHEDULED);
 
         LMAppointment savedAppointment = appointmentRepository.save(appointment);
 
@@ -117,17 +157,29 @@ public class LMAppointmentController {
         return ResponseEntity.ok(savedAppointment);
     }
 
-    // ===================== UPDATE (DOCTOR ONLY) =====================
+    // ===================== UPDATE BOOKING DETAILS (ADMIN / RECEPTIONIST ONLY) =====================
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN','RECEPTIONIST')")
     public ResponseEntity<LMAppointment> updateAppointment(@PathVariable Long id,
-                                                           @RequestBody LMAppointment appointment) {
+                                                           @RequestBody LMAppointment appointment,
+                                                           Authentication authentication) {
 
         return appointmentRepository.findById(id).map(existing -> {
-
             appointment.setId(id);
             appointment.setCreatedAt(existing.getCreatedAt());
+            appointment.setStatus(existing.getStatus());
+            appointment.setDoctorNotes(existing.getDoctorNotes());
+
+            if (appointment.getPatientId() != null) {
+                patientRepository.findById(appointment.getPatientId()).ifPresent(p -> {
+                    appointment.setPatientId(p.getId());
+                    appointment.setPatientName(p.getFullName());
+                });
+            } else {
+                appointment.setPatientId(existing.getPatientId());
+                appointment.setPatientName(existing.getPatientName());
+            }
 
             if (appointment.getDoctorId() != null) {
                 doctorRepository.findById(appointment.getDoctorId()).ifPresent(d -> {
@@ -136,6 +188,12 @@ public class LMAppointmentController {
                     appointment.setDepartment(d.getDepartment());
                     appointment.setSpecialization(d.getSpecialization());
                 });
+            } else {
+                appointment.setDoctorId(existing.getDoctorId());
+                appointment.setDoctorName(existing.getDoctorName());
+                appointment.setDoctorCode(existing.getDoctorCode());
+                appointment.setDepartment(existing.getDepartment());
+                appointment.setSpecialization(existing.getSpecialization());
             }
 
             return ResponseEntity.ok(appointmentRepository.save(appointment));
@@ -153,6 +211,9 @@ public class LMAppointmentController {
                                                      Authentication authentication) {
 
         return appointmentRepository.findById(id).map(a -> {
+            if (!isCurrentDoctorAppointment(authentication, a)) {
+                return ResponseEntity.status(403).<LMAppointment>build();
+            }
 
             LMAppointmentStatus oldStatus = a.getStatus();
             a.setStatus(status);
@@ -175,6 +236,11 @@ public class LMAppointmentController {
                         LMNotificationType.APPOINTMENT_CANCELLED,
                         "Appointment Cancelled",
                         authentication);
+            } else if (oldStatus != status) {
+                sendAppointmentNotification(savedAppointment,
+                        LMNotificationType.GENERAL,
+                        "Appointment Updated",
+                        authentication);
             }
 
             return ResponseEntity.ok(savedAppointment);
@@ -185,13 +251,72 @@ public class LMAppointmentController {
     // ===================== DELETE =====================
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('DOCTOR')")
-    public ResponseEntity<?> deleteAppointment(@PathVariable Long id) {
+    @PreAuthorize("hasAnyRole('ADMIN','RECEPTIONIST')")
+    public ResponseEntity<?> deleteAppointment(@PathVariable Long id, Authentication authentication) {
 
         return appointmentRepository.findById(id).map(a -> {
             appointmentRepository.delete(a);
             return ResponseEntity.ok().build();
         }).orElse(ResponseEntity.notFound().build());
+    }
+
+    private List<LMAppointment> getAppointmentsForCurrentUser(Authentication authentication) {
+        LMUser user = getCurrentUser(authentication);
+
+        if (user.getRole() == LMRole.DOCTOR) {
+            LMDoctor doctor = getDoctorProfile(user);
+            return appointmentRepository.findByDoctorId(doctor.getId());
+        }
+
+        if (user.getRole() == LMRole.PATIENT) {
+            List<Long> patientIds = getCurrentPatientIds(user);
+            if (patientIds.isEmpty()) return List.of();
+            return appointmentRepository.findByPatientIdIn(patientIds);
+        }
+
+        return appointmentRepository.findAll();
+    }
+
+    private LMUser getCurrentUser(Authentication authentication) {
+        if (authentication == null) {
+            throw new RuntimeException("Unauthenticated");
+        }
+        return userRepository.findByUsername(authentication.getName())
+                .orElseGet(() -> userRepository.findByEmail(authentication.getName())
+                        .orElseThrow(() -> new RuntimeException("User not found")));
+    }
+
+    private LMDoctor getDoctorProfile(LMUser user) {
+        return doctorRepository.findByUserId(user.getId())
+                .or(() -> doctorRepository.findByEmail(user.getEmail()))
+                .or(() -> doctorRepository.findByUsername(user.getUsername()))
+                .orElseThrow(() -> new RuntimeException("Doctor profile not found"));
+    }
+
+    private List<Long> getCurrentPatientIds(LMUser user) {
+        return patientRepository.findByUserId(user.getId()).stream()
+                .map(LMPatient::getId)
+                .toList();
+    }
+
+    private boolean isCurrentDoctorAppointment(Authentication authentication, LMAppointment appointment) {
+        LMUser user = getCurrentUser(authentication);
+        if (user.getRole() != LMRole.DOCTOR) return false;
+        LMDoctor doctor = getDoctorProfile(user);
+        return doctor.getId().equals(appointment.getDoctorId());
+    }
+
+    private boolean canAccessAppointment(Authentication authentication, LMAppointment appointment) {
+        LMUser user = getCurrentUser(authentication);
+        if (user.getRole() == LMRole.ADMIN || user.getRole() == LMRole.RECEPTIONIST) return true;
+        if (user.getRole() == LMRole.DOCTOR) {
+            LMDoctor doctor = getDoctorProfile(user);
+            return doctor.getId().equals(appointment.getDoctorId());
+        }
+        if (user.getRole() == LMRole.PATIENT) {
+            return getCurrentPatientIds(user).contains(appointment.getPatientId());
+        }
+        return false;
     }
 
     // ===================== NOTIFICATION =====================
@@ -203,10 +328,12 @@ public class LMAppointmentController {
 
         try {
             LMPatient patient = patientRepository.findById(appointment.getPatientId()).orElse(null);
-            if (patient == null || patient.getUserId() == null) return;
+            if (patient == null) return;
 
             String senderUsername = authentication != null ? authentication.getName() : "system";
-            LMUser sender = userRepository.findByUsername(senderUsername).orElse(null);
+            LMUser sender = userRepository.findByUsername(senderUsername)
+                    .or(() -> userRepository.findByEmail(senderUsername))
+                    .orElse(null);
             if (sender == null) return;
 
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM dd, yyyy 'at' hh:mm a");
@@ -231,22 +358,11 @@ public class LMAppointmentController {
                     break;
 
                 default:
-                    message = title;
+                    message = "Your appointment with " + appointment.getDoctorName() +
+                            " on " + formattedDate + " has been updated to " + appointment.getStatus() + ".";
             }
 
-            LMNotification notification = LMNotification.builder()
-                    .recipientId(patient.getUserId())
-                    .recipientName(patient.getFullName())
-                    .senderId(sender.getId())
-                    .senderName(sender.getFullName())
-                    .title(title)
-                    .message(message)
-                    .type(type)
-                    .referenceId(appointment.getId())
-                    .read(false)
-                    .build();
-
-            notificationRepository.save(notification);
+            emailNotificationService.sendPatientEmail(patient, title, message);
 
         } catch (Exception e) {
             System.err.println("Notification error: " + e.getMessage());

@@ -25,6 +25,7 @@ C:\Users\Dell\Desktop\Laxmi Project\LMHospital_v2 (3)\LMHospital_v2\backend\src\
 C:\Users\Dell\Desktop\Laxmi Project\LMHospital_v2 (3)\LMHospital_v2\backend\src\main\java\com\lm\hospital\model\LMUser.java
 C:\Users\Dell\Desktop\Laxmi Project\LMHospital_v2 (3)\LMHospital_v2\backend\src\main\java\com\lm\hospital\repository\LMBillingRepository.java
 C:\Users\Dell\Desktop\Laxmi Project\LMHospital_v2 (3)\LMHospital_v2\backend\src\main\java\com\lm\hospital\controller\LMBillingController.java
+C:\Users\Dell\Desktop\Laxmi Project\LMHospital_v2 (3)\LMHospital_v2\backend\src\main\java\com\lm\hospital\service\LMEmailNotificationService.java
 C:\Users\Dell\Desktop\Laxmi Project\LMHospital_v2 (3)\LMHospital_v2\backend\src\main\java\com\lm\hospital\config\LMCorsConfig.java
 C:\Users\Dell\Desktop\Laxmi Project\LMHospital_v2 (3)\LMHospital_v2\backend\src\main\java\com\lm\hospital\model\LMNotification.java
 C:\Users\Dell\Desktop\Laxmi Project\LMHospital_v2 (3)\LMHospital_v2\backend\src\main\java\com\lm\hospital\controller\LMMedicalRecordController.java

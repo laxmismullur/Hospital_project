@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { LMApi } from '../services/LMApiService';
 import { useLMAuth } from '../context/LMAuthContext';
 import {
-  Plus, Search, Edit2, Trash2, X,
+  Plus, Search, X,
   CheckCircle, XCircle, CalendarDays, Clock
 } from 'lucide-react';
 
@@ -12,14 +12,21 @@ const STATUSES = ['SCHEDULED','CONFIRMED','COMPLETED','CANCELLED','NO_SHOW'];
 function LMApptModal({ appt, patients, doctors, onClose, onSave }) {
   const [form, setForm] = useState(
     appt ? { ...appt, appointmentDate: appt.appointmentDate?.slice(0, 16) } :
-    { patientId: '', patientName: '', doctorId: '', appointmentDate: '', reason: '', notes: '', status: 'SCHEDULED' }
+    {
+      patientId: patients.length === 1 ? patients[0].id : '',
+      patientName: patients.length === 1 ? patients[0].fullName : '',
+      doctorId: '',
+      appointmentDate: '',
+      reason: '',
+      notes: ''
+    }
   );
   const [saving, setSaving] = useState(false);
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const handlePatient = (id) => {
     const p = patients.find(p => String(p.id) === String(id));
-    setForm(f => ({ ...f, patientId: id, patientName: p?.fullName || '' }));
+    setForm(f => ({ ...f, patientId: id, patientName: p?.fullName || '', doctorId: '' }));
   };
   const handleDoctor = (id) => {
     setForm(f => ({ ...f, doctorId: id }));
@@ -31,7 +38,13 @@ function LMApptModal({ appt, patients, doctors, onClose, onSave }) {
     }
     setSaving(true);
     try {
-      const payload = { ...form, patientId: Number(form.patientId), doctorId: Number(form.doctorId) };
+      const payload = {
+        patientId: Number(form.patientId),
+        doctorId: Number(form.doctorId),
+        appointmentDate: form.appointmentDate,
+        reason: form.reason,
+        notes: form.notes
+      };
       if (appt?.id) await LMApi.updateAppointment(appt.id, payload);
       else           await LMApi.createAppointment(payload);
       onSave();
@@ -39,7 +52,11 @@ function LMApptModal({ appt, patients, doctors, onClose, onSave }) {
     finally { setSaving(false); }
   };
 
-  const selectedDoc = doctors.find(d => String(d.id) === String(form.doctorId));
+  const selectedPatient = patients.find(p => String(p.id) === String(form.patientId));
+  const filteredDoctors = selectedPatient?.assignedDoctorSpecialization
+    ? doctors.filter(d => d.specialization === selectedPatient.assignedDoctorSpecialization)
+    : doctors;
+  const selectedDoc = filteredDoctors.find(d => String(d.id) === String(form.doctorId));
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -61,10 +78,10 @@ function LMApptModal({ appt, patients, doctors, onClose, onSave }) {
               </select>
             </div>
             <div className="form-group">
-              <label>Doctor *</label>
+              <label>Doctor * {selectedPatient?.assignedDoctorSpecialization ? `(${selectedPatient.assignedDoctorSpecialization})` : ''}</label>
               <select value={form.doctorId} onChange={e => handleDoctor(e.target.value)}>
                 <option value="">Select Doctor</option>
-                {doctors.map(d => (
+                {filteredDoctors.map(d => (
                   <option key={d.id} value={d.id}>
                     {d.fullName} — {d.specialization}
                   </option>
@@ -80,18 +97,10 @@ function LMApptModal({ appt, patients, doctors, onClose, onSave }) {
             </div>
           )}
 
-          <div className="form-row">
-            <div className="form-group">
-              <label>Date & Time *</label>
-              <input type="datetime-local" value={form.appointmentDate || ''}
-                onChange={e => set('appointmentDate', e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label>Status</label>
-              <select value={form.status} onChange={e => set('status', e.target.value)}>
-                {STATUSES.map(s => <option key={s}>{s}</option>)}
-              </select>
-            </div>
+          <div className="form-group">
+            <label>Date & Time *</label>
+            <input type="datetime-local" value={form.appointmentDate || ''}
+              onChange={e => set('appointmentDate', e.target.value)} />
           </div>
 
           <div className="form-group">
@@ -160,6 +169,9 @@ function LMCompleteModal({ appt, onClose, onSave }) {
 // ── Main Page ────────────────────────────────────────────────
 export default function LMAppointments() {
   const { user } = useLMAuth();
+  const isDoctor = user?.role === 'DOCTOR';
+  const isPatient = user?.role === 'PATIENT';
+  const canBookAppointment = ['RECEPTIONIST', 'PATIENT'].includes(user?.role);
   const [appointments, setAppointments] = useState([]);
   const [patients, setPatients]         = useState([]);
   const [doctors, setDoctors]           = useState([]);
@@ -170,25 +182,23 @@ export default function LMAppointments() {
   const [completeModal, setCompleteModal] = useState(null);
 
   const load = () => {
-    Promise.all([LMApi.getAppointments(), LMApi.getPatients(), LMApi.getActiveDoctors()])
+    Promise.all([
+      (isDoctor || isPatient) ? LMApi.getMyAppointments() : LMApi.getAppointments(),
+      LMApi.getPatients(),
+      LMApi.getActiveDoctors()
+    ])
       .then(([a, p, d]) => {
         setAppointments(a.data);
         setPatients(p.data);
         setDoctors(d.data);
       }).finally(() => setLoading(false));
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [user?.role]);
 
   const handleStatus = async (id, status) => {
     await LMApi.updateAppointmentStatus(id, status);
     load();
   };
-  const handleDelete = async (id) => {
-    if (!confirm('Cancel and delete this appointment?')) return;
-    await LMApi.deleteAppointment(id);
-    load();
-  };
-
   const filtered = appointments.filter(a => {
     const q = search.toLowerCase();
     const matchSearch = !q || a.patientName?.toLowerCase().includes(q) || a.doctorName?.toLowerCase().includes(q) || a.department?.toLowerCase().includes(q);
@@ -209,7 +219,7 @@ export default function LMAppointments() {
           <h1 className="page-title">Appointment Management</h1>
           <p className="page-subtitle">{appointments.length} total · {filtered.length} shown</p>
         </div>
-        {user.role === "PATIENT" && (
+        {canBookAppointment && (
   <button className="btn btn-primary" onClick={() => setModal({})}>
     <Plus size={14} /> Book Appointment
   </button>
@@ -283,27 +293,21 @@ export default function LMAppointments() {
                   <td><span className={`badge badge-${a.status?.toLowerCase()}`}>{a.status}</span></td>
                   <td>
                     <div style={{ display: 'flex', gap: '4px' }}>
-                      {a.status === 'SCHEDULED' && (
+                      {isDoctor && a.status === 'SCHEDULED' && (
                         <button className="btn btn-teal btn-sm" title="Confirm" onClick={() => handleStatus(a.id, 'CONFIRMED')}>
                           <CheckCircle size={12} />
                         </button>
                       )}
-                      {(a.status === 'SCHEDULED' || a.status === 'CONFIRMED') && (
+                      {isDoctor && (a.status === 'SCHEDULED' || a.status === 'CONFIRMED') && (
                         <button className="btn btn-ghost btn-sm" title="Complete" onClick={() => setCompleteModal(a)}>
                           <Clock size={12} />
                         </button>
                       )}
-                      {a.status !== 'CANCELLED' && a.status !== 'COMPLETED' && (
+                      {isDoctor && a.status !== 'CANCELLED' && a.status !== 'COMPLETED' && (
                         <button className="btn btn-ghost btn-sm" title="Cancel" onClick={() => handleStatus(a.id, 'CANCELLED')}>
                           <XCircle size={12} />
                         </button>
                       )}
-                      <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => setModal(a)}>
-                        <Edit2 size={12} />
-                      </button>
-                      <button className="btn btn-danger btn-sm" title="Delete" onClick={() => handleDelete(a.id)}>
-                        <Trash2 size={12} />
-                      </button>
                     </div>
                   </td>
                 </tr>

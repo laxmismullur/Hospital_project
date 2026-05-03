@@ -6,6 +6,8 @@ import {
 
 const EMPTY = {
   fullName: '',
+  username: '',
+  password: '',
   specialization: '',
   department: '',
   phone: '',
@@ -28,9 +30,13 @@ const DEPT_MAP = {
   Psychiatry: 'Psychiatry', Oncology: 'Oncology', Urology: 'Urology',
 };
 
+const NAME_RE = /^[A-Za-z][A-Za-z\s.'-]{2,}$/;
+const PHONE_RE = /^(?:\+91[-\s]?)?[6-9]\d{9}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 // ───────────── MODAL ─────────────
 function NurseModal({ nurse, onClose, onSave }) {
-  const [form, setForm] = useState(nurse || EMPTY);
+  const [form, setForm] = useState({ ...(nurse || EMPTY), password: '' });
   const [error, setError] = useState('');
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -44,8 +50,24 @@ function NurseModal({ nurse, onClose, onSave }) {
   };
 
   const handleSave = async () => {
-    if (!form.fullName || !form.phone) {
-      setError("Name and phone required");
+    if (!form.fullName || !form.username || !form.email || !form.phone) {
+      setError("Name, username, email and phone are required");
+      return;
+    }
+    if (!NAME_RE.test(form.fullName.trim())) {
+      setError("Name must contain only letters and be at least 3 characters");
+      return;
+    }
+    if (!EMAIL_RE.test(form.email.trim())) {
+      setError("Enter a valid email address");
+      return;
+    }
+    if (!PHONE_RE.test(form.phone.trim())) {
+      setError("Enter a valid Indian phone number");
+      return;
+    }
+    if (!nurse?.id && !form.password) {
+      setError("Password is required");
       return;
     }
 
@@ -91,10 +113,39 @@ function NurseModal({ nurse, onClose, onSave }) {
             </div>
 
             <div className="form-group">
-              <label>Specialization</label>
-              <select value={form.specialization} onChange={e => handleSpec(e.target.value)}>
-                <option value="">Select Specialization</option>
-                {SPECIALIZATIONS.map(s => <option key={s}>{s}</option>)}
+              <label>Username *</label>
+              <input value={form.username || ''} onChange={e => set('username', e.target.value)} />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Email *</label>
+              <input value={form.email} onChange={e => set('email', e.target.value)} />
+            </div>
+
+            <div className="form-group">
+              <label>Phone *</label>
+              <input value={form.phone} onChange={e => set('phone', e.target.value)} />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>{nurse?.id ? 'New Password' : 'Password *'}</label>
+              <input
+                type="password"
+                value={form.password || ''}
+                onChange={e => set('password', e.target.value)}
+                placeholder={nurse?.id ? 'Leave blank to keep current password' : ''}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Status</label>
+              <select value={String(form.active)} onChange={e => set('active', e.target.value === 'true')}>
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
               </select>
             </div>
           </div>
@@ -106,14 +157,12 @@ function NurseModal({ nurse, onClose, onSave }) {
             </div>
 
             <div className="form-group">
-              <label>Phone *</label>
-              <input value={form.phone} onChange={e => set('phone', e.target.value)} />
+              <label>Specialization</label>
+              <select value={form.specialization} onChange={e => handleSpec(e.target.value)}>
+                <option value="">Select Specialization</option>
+                {SPECIALIZATIONS.map(s => <option key={s}>{s}</option>)}
+              </select>
             </div>
-          </div>
-
-          <div className="form-group">
-            <label>Email</label>
-            <input value={form.email} onChange={e => set('email', e.target.value)} />
           </div>
 
         </div>

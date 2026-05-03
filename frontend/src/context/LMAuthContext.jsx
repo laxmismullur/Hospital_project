@@ -43,9 +43,17 @@ export function LMAuthProvider({ children }) {
     // attach token globally
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
-    setUser(userData);
+    const meRes = await axios.get('http://localhost:8085/api/lm/auth/me');
+    const currentUser = {
+      ...userData,
+      ...meRes.data,
+      role: meRes.data?.role || userData.role
+    };
 
-    return userData;
+    localStorage.setItem('lm_user', JSON.stringify(currentUser));
+    setUser(currentUser);
+
+    return currentUser;
   };
 
   // =========================

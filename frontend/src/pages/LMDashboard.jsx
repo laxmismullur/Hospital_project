@@ -52,9 +52,12 @@ export default function LMDashboard() {
 
   useEffect(() => {
     Promise.all([LMApi.getStats(), LMApi.getActivity()])
-      .then(([s, a]) => { setStats(s.data); setActivity(a.data); })
+      .then(([s, a]) => {
+        setStats(s.data);
+        setActivity(a.data);
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [user?.role]);
 
   if (loading) return <div className="loading-screen"><div className="spinner" /><span>Loading dashboard...</span></div>;
 

@@ -41,7 +41,7 @@ public class LMNotification {
     // Optional reference to related entity (appointment, etc.)
     private Long referenceId;
 
-    @Column(nullable = false)
+    @Column(name = "is_read", nullable = false)
     private boolean read = false;
 
     @Column(name = "created_at", updatable = false)

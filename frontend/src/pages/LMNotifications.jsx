@@ -1,38 +1,57 @@
 import React, { useEffect, useState } from 'react';
 import { LMApi } from '../services/LMApiService';
-import { Bell, Check, X, Trash2, Clock, AlertCircle } from 'lucide-react';
+import {
+  AlertCircle,
+  Bell,
+  CalendarDays,
+  Check,
+  Clock,
+  CreditCard,
+  FileText,
+  RefreshCw,
+  Trash2
+} from 'lucide-react';
 import { useLMAuth } from '../context/LMAuthContext';
 import { useNavigate } from 'react-router-dom';
 
 export default function LMNotifications() {
-  const { user, logout } = useLMAuth();
+  const { logout } = useLMAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  const handleAuthError = (err) => {
+    if (err.response?.status === 401) {
+      setError('Your session has expired. Please login again.');
+      logout();
+      setTimeout(() => navigate('/login'), 2000);
+      return true;
+    }
+    if (err.response?.status === 403) {
+      setError('Notifications are available only for patient accounts.');
+      return true;
+    }
+    return false;
+  };
+
   const loadNotifications = async () => {
     try {
       setError(null);
       setLoading(true);
-      
+
       const [notificationsRes, countRes] = await Promise.all([
         LMApi.getMyNotifications(),
         LMApi.getUnreadNotificationCount()
       ]);
-      
+
       setNotifications(notificationsRes.data || []);
       setUnreadCount(countRes.data?.count || 0);
     } catch (err) {
       console.error('Failed to load notifications:', err);
-      
-      // Check if it's a session/auth error
-      if (err.response?.status === 401 || err.response?.status === 403) {
-        setError('Your session has expired. Please login again.');
-        logout();
-        setTimeout(() => navigate('/login'), 2000);
-      } else {
+
+      if (!handleAuthError(err)) {
         setError('Failed to load notifications. Please try again.');
       }
     } finally {
@@ -47,13 +66,9 @@ export default function LMNotifications() {
   const markAsRead = async (id) => {
     try {
       await LMApi.markNotificationAsRead(id);
-      loadNotifications(); // Refresh the list
-    } catch (error) {
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        setError('Your session has expired. Please login again.');
-        logout();
-        setTimeout(() => navigate('/login'), 2000);
-      } else {
+      loadNotifications();
+    } catch (err) {
+      if (!handleAuthError(err)) {
         setError('Failed to mark notification as read');
       }
     }
@@ -62,13 +77,9 @@ export default function LMNotifications() {
   const markAllAsRead = async () => {
     try {
       await LMApi.markAllNotificationsAsRead();
-      loadNotifications(); // Refresh the list
-    } catch (error) {
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        setError('Your session has expired. Please login again.');
-        logout();
-        setTimeout(() => navigate('/login'), 2000);
-      } else {
+      loadNotifications();
+    } catch (err) {
+      if (!handleAuthError(err)) {
         setError('Failed to mark all as read');
       }
     }
@@ -78,13 +89,9 @@ export default function LMNotifications() {
     if (!window.confirm('Delete this notification?')) return;
     try {
       await LMApi.deleteNotification(id);
-      loadNotifications(); // Refresh the list
-    } catch (error) {
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        setError('Your session has expired. Please login again.');
-        logout();
-        setTimeout(() => navigate('/login'), 2000);
-      } else {
+      loadNotifications();
+    } catch (err) {
+      if (!handleAuthError(err)) {
         setError('Failed to delete notification');
       }
     }
@@ -96,19 +103,21 @@ export default function LMNotifications() {
   };
 
   const getNotificationIcon = (type) => {
+    const iconProps = { size: 18 };
     switch (type) {
       case 'APPOINTMENT_BOOKED':
-        return '📅';
       case 'APPOINTMENT_CONFIRMED':
-        return '✅';
       case 'APPOINTMENT_CANCELLED':
-        return '❌';
-      case 'APPOINTMENT_RESCHEDULED':
-        return '🔄';
       case 'APPOINTMENT_REMINDER':
-        return '⏰';
+        return <CalendarDays {...iconProps} />;
+      case 'APPOINTMENT_RESCHEDULED':
+        return <RefreshCw {...iconProps} />;
+      case 'MEDICAL_RECORD_UPDATE':
+        return <FileText {...iconProps} />;
+      case 'BILLING_UPDATE':
+        return <CreditCard {...iconProps} />;
       default:
-        return '🔔';
+        return <Bell {...iconProps} />;
     }
   };
 
@@ -140,14 +149,13 @@ export default function LMNotifications() {
 
   return (
     <div>
-      {/* HEADER */}
       <div className="page-header">
         <div>
           <h1>
             <Bell size={24} style={{ marginRight: '10px', verticalAlign: 'middle' }} />
             Notifications
           </h1>
-          <p>{notifications.length} notifications · {unreadCount} unread</p>
+          <p>{notifications.length} notifications - {unreadCount} unread</p>
         </div>
 
         {unreadCount > 0 && (
@@ -157,13 +165,12 @@ export default function LMNotifications() {
         )}
       </div>
 
-      {/* NOTIFICATIONS LIST */}
       <div className="notifications-container">
         {notifications.length === 0 ? (
           <div className="empty-state">
             <Bell size={48} color="#94a3b8" />
             <h3>No notifications yet</h3>
-            <p>You'll receive notifications about your appointments and updates here.</p>
+            <p>You'll receive notifications about your appointments, medical records, billing, and profile updates here.</p>
           </div>
         ) : (
           notifications.map(notification => (
@@ -189,7 +196,7 @@ export default function LMNotifications() {
                 <div className="notification-meta">
                   <span className="sender">From: {notification.senderName}</span>
                   <span className={`type-badge type-${notification.type.toLowerCase()}`}>
-                    {notification.type.replace('_', ' ')}
+                    {notification.type.replaceAll('_', ' ')}
                   </span>
                 </div>
               </div>

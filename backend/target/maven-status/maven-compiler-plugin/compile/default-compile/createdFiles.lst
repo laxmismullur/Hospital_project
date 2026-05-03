@@ -14,6 +14,7 @@ com\lm\hospital\model\LMDoctor.class
 com\lm\hospital\model\LMUser.class
 com\lm\hospital\dto\LMChangePasswordRequest.class
 com\lm\hospital\controller\LMNotificationController.class
+com\lm\hospital\service\LMEmailNotificationService.class
 com\lm\hospital\controller\LMAuthController.class
 com\lm\hospital\controller\LMDoctorController.class
 com\lm\hospital\dto\LMDashboardStats$LMDashboardStatsBuilder.class

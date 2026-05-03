@@ -1,17 +1,19 @@
 import axios from "axios";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8085/api/lm";
+
 /* =========================================================
    🔐 AUTH API (login, me, password, etc.)
 ========================================================= */
 const AuthAPI = axios.create({
-  baseURL: "http://localhost:8085/api/lm",
+  baseURL: API_BASE_URL,
 });
 
 /* =========================================================
    🏥 STAFF API (ALL protected modules)
 ========================================================= */
 const StaffAPI = axios.create({
-  baseURL: "http://localhost:8085/api/lm",
+  baseURL: API_BASE_URL,
 });
 
 /* =========================================================
@@ -58,9 +60,9 @@ export const LMApi = {
   /* =========================
      🔐 AUTH MODULE
   ========================= */
-  login: (data) => AuthAPI.post("/login", data),
-  me: () => AuthAPI.get("/me"),
-  changePassword: (data) => AuthAPI.post("/change-password", data),
+  login: (data) => AuthAPI.post("/auth/login", data),
+  me: () => AuthAPI.get("/auth/me"),
+  changePassword: (data) => AuthAPI.post("/auth/change-password", data),
 
   /* =========================
      📊 DASHBOARD
@@ -74,6 +76,7 @@ export const LMApi = {
   ========================= */
   getDoctors: () => StaffAPI.get("/doctors"),
   getDoctor: (id) => StaffAPI.get(`/doctors/${id}`),
+  getMyDoctorProfile: () => StaffAPI.get("/doctors/profile"),
   getActiveDoctors: () => StaffAPI.get("/doctors/active"),
   searchDoctors: (name) => StaffAPI.get(`/doctors/search?name=${name}`),
   createDoctor: (data) => StaffAPI.post("/doctors", data),
@@ -87,6 +90,7 @@ export const LMApi = {
   getPatients: () => StaffAPI.get("/patients"),
   getPatient: (id) => StaffAPI.get(`/patients/${id}`),
   getMyPatients: () => StaffAPI.get("/patients/user"),
+  getMyPatientProfile: () => StaffAPI.get("/patients/profile"),
   createPatient: (data) => StaffAPI.post("/patients", data),
   updatePatient: (id, data) => StaffAPI.put(`/patients/${id}`, data),
   deletePatient: (id) => StaffAPI.delete(`/patients/${id}`),
@@ -95,9 +99,11 @@ export const LMApi = {
      📅 APPOINTMENTS
   ========================= */
   getAppointments: () => StaffAPI.get("/appointments"),
-  getMyAppointments: () => StaffAPI.get("/appointments/user"),
+  getMyAppointments: () => StaffAPI.get("/appointments/my"),
   createAppointment: (data) => StaffAPI.post("/appointments", data),
   updateAppointment: (id, data) => StaffAPI.put(`/appointments/${id}`, data),
+  updateAppointmentStatus: (id, status, doctorNotes = "") =>
+    StaffAPI.patch(`/appointments/${id}/status`, null, { params: { status, doctorNotes } }),
   deleteAppointment: (id) => StaffAPI.delete(`/appointments/${id}`),
 
   /* =========================
@@ -135,7 +141,9 @@ export const LMApi = {
      👩‍⚕️ STAFF
   ========================= */
   addStaff: (data) => StaffAPI.post("/staff", data),
+  createStaff: (data) => StaffAPI.post("/staff", data),
   getStaffByRole: (role) => StaffAPI.get(`/staff/role/${role}`),
   updateStaff: (id, data) => StaffAPI.put(`/staff/${id}`, data),
+  toggleStaffActive: (id) => StaffAPI.patch(`/staff/${id}/toggle-active`),
   deleteStaff: (id) => StaffAPI.delete(`/staff/${id}`),
 };

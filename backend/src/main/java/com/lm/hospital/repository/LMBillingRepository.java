@@ -10,6 +10,7 @@ import java.util.Optional;
 
 public interface LMBillingRepository extends JpaRepository<LMBilling, Long> {
     List<LMBilling> findByPatientId(Long patientId);
+    List<LMBilling> findByPatientIdIn(List<Long> patientIds);
     List<LMBilling> findByPaymentStatus(LMPaymentStatus status);
     Optional<LMBilling> findByInvoiceNumber(String invoiceNumber);
     long countByPaymentStatus(LMPaymentStatus status);

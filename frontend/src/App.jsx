@@ -10,20 +10,27 @@ import LMPatients from './pages/LMPatients';
 import LMAppointments from './pages/LMAppointments';
 import LMMedicalRecords from './pages/LMMedicalRecords';
 import LMBilling from './pages/LMBilling';
-import LMNotifications from './pages/LMNotifications';
 import LMLoginPage from './pages/LMLoginPage';
 import LMAddStaff from './pages/LMAddStaff';
 
 
 // ✅ Protected Route Component
-function LMProtectedRoute({ children }) {
+function LMProtectedRoute({ children, roles }) {
   const { user } = useLMAuth();
 
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
+  if (roles && !roles.includes(user.role)) {
+    return <Navigate to={user.role === 'PATIENT' ? '/patients' : '/'} replace />;
+  }
+
   return children;
+}
+
+function LMRolePage({ roles, children }) {
+  return <LMProtectedRoute roles={roles}>{children}</LMProtectedRoute>;
 }
 
 
@@ -49,14 +56,14 @@ function LMAppRoutes() {
           </LMProtectedRoute>
         }
       >
-        <Route index element={<LMDashboard />} />
-        <Route path="doctors" element={<LMDoctors />} />
-        <Route path="patients" element={<LMPatients />} />
-        <Route path="appointments" element={<LMAppointments />} />
-        <Route path="medical-records" element={<LMMedicalRecords />} />
-        <Route path="billing" element={<LMBilling />} />
-        <Route path="notifications" element={<LMNotifications />} />
-        <Route path="add-staff" element={<LMAddStaff />} />
+        <Route index element={user?.role === 'PATIENT' ? <Navigate to="/patients" replace /> : <LMDashboard />} />
+        <Route path="doctors" element={<LMRolePage roles={['ADMIN']}><LMDoctors /></LMRolePage>} />
+        <Route path="patients" element={<LMRolePage roles={['ADMIN','DOCTOR','NURSE','RECEPTIONIST','PATIENT']}><LMPatients /></LMRolePage>} />
+        <Route path="appointments" element={<LMRolePage roles={['ADMIN','DOCTOR','NURSE','RECEPTIONIST','PATIENT']}><LMAppointments /></LMRolePage>} />
+        <Route path="medical-records" element={<LMRolePage roles={['ADMIN','DOCTOR','NURSE','PATIENT']}><LMMedicalRecords /></LMRolePage>} />
+        <Route path="billing" element={<LMRolePage roles={['ADMIN','RECEPTIONIST','PATIENT']}><LMBilling /></LMRolePage>} />
+        <Route path="notifications" element={<Navigate to="/" replace />} />
+        <Route path="add-staff" element={<LMRolePage roles={['ADMIN']}><LMAddStaff /></LMRolePage>} />
       </Route>
 
       {/* Fallback */}

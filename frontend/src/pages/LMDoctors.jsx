@@ -8,7 +8,7 @@ import {
 const EMPTY = {
   fullName: '', specialization: '', department: '', qualification: '',
   phone: '', email: '', experience: '', consultationFee: '',
-  availability: '', address: '', active: true,
+  availability: '', address: '', username: '', password: '', active: true,
 };
 
 const SPECIALIZATIONS = [
@@ -25,23 +25,37 @@ const DEPT_MAP = {
   Psychiatry: 'Psychiatry', Oncology: 'Oncology', Urology: 'Urology',
 };
 
+const DOCTOR_NAME_RE = /^Dr\.[A-Za-z][A-Za-z\s.'-]{1,}$/;
+const PHONE_RE = /^(?:\+91[-\s]?)?[6-9]\d{9}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 // ── Modal ────────────────────────────────────────────────────
 function LMDoctorModal({ doctor, onClose, onSave }) {
-  const [form, setForm]     = useState(doctor || EMPTY);
+  const [form, setForm]     = useState({ ...(doctor || EMPTY), password: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const handleSpec = (v) => setForm(p => ({ ...p, specialization: v, department: DEPT_MAP[v] || v }));
 
-  const validateName = (name) => /^[a-zA-Z\s\-'.]+$/.test(name.trim());
-
   const handleSave = async () => {
-    if (!form.fullName || !form.specialization || !form.phone) {
-      setError('Full name, specialization and phone are required.'); return;
+    if (!form.fullName || !form.specialization || !form.qualification || !form.phone || !form.email || !form.username) {
+      setError('Doctor name, specialization, qualification, phone, email and username are required.'); return;
     }
-    if (!validateName(form.fullName)) {
-      setError('Doctor name can only contain letters, spaces, hyphens, apostrophes and dots. Numbers are not allowed.'); return;
+    if (!doctor?.id && !form.password) {
+      setError('Password is required for a new doctor login.'); return;
+    }
+    if (!DOCTOR_NAME_RE.test(form.fullName.trim())) {
+      setError('Doctor name must be in this format: Dr.Laxmi'); return;
+    }
+    if (form.qualification !== 'MBBS') {
+      setError('Doctor qualification must be MBBS only.'); return;
+    }
+    if (!PHONE_RE.test(form.phone.trim())) {
+      setError('Enter a valid Indian phone number, for example 9876543210 or +91-9876543210.'); return;
+    }
+    if (!EMAIL_RE.test(form.email.trim())) {
+      setError('Enter a valid email address.'); return;
     }
     setSaving(true); setError('');
     try {
@@ -74,7 +88,7 @@ function LMDoctorModal({ doctor, onClose, onSave }) {
           <div className="form-row">
             <div className="form-group">
               <label>Full Name *</label>
-              <input value={form.fullName} onChange={e => set('fullName', e.target.value)} placeholder="Dr. First Last" />
+              <input value={form.fullName} onChange={e => set('fullName', e.target.value)} placeholder="Dr.Laxmi" />
             </div>
             <div className="form-group">
               <label>Specialization *</label>
@@ -92,7 +106,10 @@ function LMDoctorModal({ doctor, onClose, onSave }) {
             </div>
             <div className="form-group">
               <label>Qualification</label>
-              <input value={form.qualification} onChange={e => set('qualification', e.target.value)} placeholder="MBBS, MD, DM..." />
+              <select value={form.qualification} onChange={e => set('qualification', e.target.value)}>
+                <option value="">Select Qualification</option>
+                <option value="MBBS">MBBS</option>
+              </select>
             </div>
           </div>
 
@@ -102,8 +119,24 @@ function LMDoctorModal({ doctor, onClose, onSave }) {
               <input value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+91-XXXXXXXXXX" />
             </div>
             <div className="form-group">
-              <label>Email</label>
+              <label>Email *</label>
               <input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="doctor@lmhospital.com" />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Username *</label>
+              <input value={form.username || ''} onChange={e => set('username', e.target.value)} placeholder="doctor login username" />
+            </div>
+            <div className="form-group">
+              <label>{doctor?.id ? 'New Password' : 'Password *'}</label>
+              <input
+                type="password"
+                value={form.password || ''}
+                onChange={e => set('password', e.target.value)}
+                placeholder={doctor?.id ? 'Leave blank to keep current password' : 'Set login password'}
+              />
             </div>
           </div>
 
@@ -419,8 +452,6 @@ export default function LMDoctors() {
     </div>
   );
 }
-
-
 
 
 

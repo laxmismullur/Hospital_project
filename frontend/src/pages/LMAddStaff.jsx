@@ -5,6 +5,7 @@ import { Plus, X } from 'lucide-react';
 import LMDoctors from './LMDoctors';
 import LMNurses from './LMNurses';
 import LMReceptionists from './LMReceptionists';
+import LMPatients from './LMPatients';
 
 /* ── Specializations ── */
 const SPECIALIZATIONS = [
@@ -26,6 +27,11 @@ const DEPT_MAP = {
   Ophthalmology: 'Ophthalmology',
 };
 
+const NAME_RE = /^[A-Za-z][A-Za-z\s.'-]{2,}$/;
+const DOCTOR_NAME_RE = /^Dr\.[A-Za-z][A-Za-z\s.'-]{1,}$/;
+const PHONE_RE = /^(?:\+91[-\s]?)?[6-9]\d{9}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function AddStaff() {
 
   const [tab, setTab] = useState('DOCTOR');
@@ -46,6 +52,11 @@ export default function AddStaff() {
     experience: '',
     availability: '',
     address: '',
+    dateOfBirth: '',
+    gender: '',
+    bloodGroup: '',
+    assignedDoctorSpecialization: '',
+    emergencyContact: '',
     active: true   // ✅ ADDED
   });
 
@@ -65,6 +76,11 @@ export default function AddStaff() {
       experience: '',
       availability: '',
       address: '',
+      dateOfBirth: '',
+      gender: '',
+      bloodGroup: '',
+      assignedDoctorSpecialization: '',
+      emergencyContact: '',
       active: true   // ✅ ADDED
     });
     setRole('');
@@ -75,12 +91,35 @@ export default function AddStaff() {
 
     if (!role) return alert("Select role");
 
-    if (!form.fullName || !form.username || !form.password || !form.phone) {
+    if (!form.fullName || !form.username || !form.password || !form.email || !form.phone) {
       return alert("Please fill required fields");
     }
 
-    if (role === "DOCTOR" && !form.specialization) {
+    if (role === "DOCTOR") {
+      if (!DOCTOR_NAME_RE.test(form.fullName.trim())) {
+        return alert("Doctor name must be in this format: Dr.Laxmi");
+      }
+      if (form.qualification !== "MBBS") {
+        return alert("Doctor qualification must be MBBS only");
+      }
+    } else if (!NAME_RE.test(form.fullName.trim())) {
+      return alert("Name must contain only letters and be at least 3 characters");
+    }
+
+    if (!EMAIL_RE.test(form.email.trim())) {
+      return alert("Enter a valid email address");
+    }
+
+    if (!PHONE_RE.test(form.phone.trim())) {
+      return alert("Enter a valid Indian phone number");
+    }
+
+    if ((role === "DOCTOR" || role === "NURSE") && !form.specialization) {
       return alert("Select specialization");
+    }
+
+    if (role === "PATIENT" && !form.assignedDoctorSpecialization) {
+      return alert("Select doctor specialization for the patient");
     }
 
     try {
@@ -98,7 +137,26 @@ export default function AddStaff() {
           consultationFee: form.consultationFee,
           availability: form.availability,
           address: form.address,
+          username: form.username,
+          password: form.password,
           active: form.active   // ✅ ADDED
+        });
+
+      } else if (role === "PATIENT") {
+
+        await LMApi.createPatient({
+          fullName: form.fullName,
+          username: form.username,
+          password: form.password,
+          email: form.email,
+          phone: form.phone,
+          dateOfBirth: form.dateOfBirth || null,
+          gender: form.gender,
+          bloodGroup: form.bloodGroup,
+          assignedDoctorSpecialization: form.assignedDoctorSpecialization,
+          address: form.address,
+          emergencyContact: form.emergencyContact,
+          status: "ACTIVE"
         });
 
       } else {
@@ -158,6 +216,10 @@ export default function AddStaff() {
         <button className={`tab-btn ${tab === 'RECEPTIONIST' ? 'active' : ''}`} onClick={() => setTab('RECEPTIONIST')}>
           Receptionists
         </button>
+
+        <button className={`tab-btn ${tab === 'PATIENT' ? 'active' : ''}`} onClick={() => setTab('PATIENT')}>
+          Patients
+        </button>
       </div>
 
       {/* CONTENT */}
@@ -165,6 +227,7 @@ export default function AddStaff() {
         {tab === 'DOCTOR' && <LMDoctors key={refreshKey} />}
         {tab === 'NURSE' && <LMNurses key={refreshKey} />}
         {tab === 'RECEPTIONIST' && <LMReceptionists key={refreshKey} />}
+        {tab === 'PATIENT' && <LMPatients key={refreshKey} />}
       </div>
 
       {/* MODAL */}
@@ -189,6 +252,7 @@ export default function AddStaff() {
                   <option value="DOCTOR">Doctor</option>
                   <option value="NURSE">Nurse</option>
                   <option value="RECEPTIONIST">Receptionist</option>
+                  {/*<option value="PATIENT">Patient</option>*/}
                 </select>
               </div>
 
@@ -216,7 +280,7 @@ export default function AddStaff() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Email</label>
+                  <label>Email *</label>
                   <input value={form.email} onChange={e => set('email', e.target.value)} />
                 </div>
 
@@ -235,8 +299,11 @@ export default function AddStaff() {
               {role === "DOCTOR" && (
                 <>
                   <div className="form-group">
-                    <label>Qualification</label>
-                    <input value={form.qualification} onChange={e => set('qualification', e.target.value)} />
+                    <label>Qualification *</label>
+                    <select value={form.qualification} onChange={e => set('qualification', e.target.value)}>
+                      <option value="">Select Qualification</option>
+                      <option value="MBBS">MBBS</option>
+                    </select>
                   </div>
 
                   <div className="form-row">
@@ -254,6 +321,55 @@ export default function AddStaff() {
                   <div className="form-group">
                     <label>Availability</label>
                     <input value={form.availability} onChange={e => set('availability', e.target.value)} />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Address</label>
+                    <input value={form.address} onChange={e => set('address', e.target.value)} />
+                  </div>
+                </>
+              )}
+
+              {role === "PATIENT" && (
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Date of Birth</label>
+                      <input type="date" value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)} />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Gender</label>
+                      <select value={form.gender} onChange={e => set('gender', e.target.value)}>
+                        <option value="">Select Gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Blood Group</label>
+                      <select value={form.bloodGroup} onChange={e => set('bloodGroup', e.target.value)}>
+                        <option value="">Select Blood Group</option>
+                        {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(bg => <option key={bg}>{bg}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Emergency Contact</label>
+                      <input value={form.emergencyContact} onChange={e => set('emergencyContact', e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Doctor Specialization *</label>
+                    <select value={form.assignedDoctorSpecialization} onChange={e => set('assignedDoctorSpecialization', e.target.value)}>
+                      <option value="">Select Specialization</option>
+                      {SPECIALIZATIONS.map(s => <option key={s}>{s}</option>)}
+                    </select>
                   </div>
 
                   <div className="form-group">

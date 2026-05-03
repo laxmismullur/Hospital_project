@@ -1,6 +1,9 @@
 package com.lm.hospital.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import lombok.*;
 import java.time.LocalDateTime;
 
@@ -19,16 +22,23 @@ public class LMDoctor {
     @Column(unique = true, nullable = false)
     private String doctorCode;
 
+    @NotBlank(message = "Doctor name is required")
+    @Pattern(regexp = "^Dr\\.[A-Za-z][A-Za-z\\s.'-]{1,}$", message = "Doctor name must be in this format: Dr.Laxmi")
     @Column(nullable = false)
     private String fullName;
 
+    @NotBlank(message = "Specialization is required")
     @Column(nullable = false)
     private String specialization;
 
     private String department;
+    @NotBlank(message = "Doctor qualification is required")
+    @Pattern(regexp = "^MBBS$", message = "Doctor qualification must be MBBS")
     private String qualification;
+    @Pattern(regexp = "^(?:\\+91[-\\s]?)?[6-9]\\d{9}$", message = "Use a valid Indian phone number")
     private String phone;
 
+    @Email(message = "Enter a valid email address")
     @Column(unique = true)
     private String email;
 
@@ -45,6 +55,9 @@ public class LMDoctor {
     
     // Username for the doctor's login account (for easy reference)
     private String username;
+
+    @Transient
+    private String password;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { LMApi } from '../services/LMApiService';
-import { Search, Edit2, Trash2, UserPlus, Eye, Calendar } from 'lucide-react';
+import { Search, Edit2, Trash2, UserPlus, Eye, Calendar, UserRound, Phone, Mail, MapPin, HeartPulse, ShieldCheck, BadgeInfo } from 'lucide-react';
 import { useLMAuth } from '../context/LMAuthContext';
 
 const STATUSES = ['ACTIVE','ADMITTED','STABLE','CRITICAL','DISCHARGED'];
@@ -17,6 +17,7 @@ const EMPTY_PATIENT = {
   allergies: '',
   medicalHistory: '',
   assignedDoctorId: '',
+  assignedDoctorSpecialization: '',
   insuranceProvider: '',
   insuranceNumber: '',
   status: 'ACTIVE'
@@ -25,8 +26,11 @@ const EMPTY_PATIENT = {
 export default function LMPatients() {
 
   const { user } = useLMAuth();
-  const canManagePatients = ['ADMIN', 'RECEPTIONIST', 'PATIENT'].includes(user?.role);
+  const canManagePatients = ['ADMIN', 'RECEPTIONIST'].includes(user?.role);
   const isPatient = user?.role === 'PATIENT';
+  const isAdmin = user?.role === 'ADMIN';
+  const canBookAppointment = ['RECEPTIONIST', 'PATIENT'].includes(user?.role);
+  const canCreatePatientLogin = ['ADMIN', 'RECEPTIONIST'].includes(user?.role);
 
   const [patients, setPatients] = useState([]);
   const [doctors, setDoctors] = useState([]);
@@ -76,17 +80,86 @@ export default function LMPatients() {
     return matchSearch && matchStatus;
   });
 
+  const doctorSpecializations = [...new Set(doctors.map(d => d.specialization).filter(Boolean))];
+
+  const getAge = (dateOfBirth) => {
+    if (!dateOfBirth) return null;
+
+    const dob = new Date(dateOfBirth);
+    if (Number.isNaN(dob.getTime())) return null;
+
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const monthDiff = today.getMonth() - dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  function LMProfileField({ label, value }) {
+    return (
+      <div className="my-profile-field">
+        <span>{label}</span>
+        <strong>
+          {value || '-'}
+        </strong>
+      </div>
+    );
+  }
+
   // ── Modal ────────────────────────────────────────────────────
   function LMPatientModal({ patient, onClose, onSave, doctors, isViewMode }) {
-    const [form, setForm] = useState(patient || EMPTY_PATIENT);
+    const [form, setForm] = useState({
+      ...(patient || EMPTY_PATIENT),
+      username: patient?.username || '',
+      password: ''
+    });
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
 
     const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+    const calculateAge = (dateOfBirth) => {
+      if (!dateOfBirth) return null;
+      const dob = new Date(dateOfBirth);
+      if (Number.isNaN(dob.getTime())) return null;
+      const today = new Date();
+      let age = today.getFullYear() - dob.getFullYear();
+      const monthDiff = today.getMonth() - dob.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) age--;
+      return age;
+    };
+
+    const display = (value) => value || 'Not provided';
+
+    const profileFields = [
+      { label: 'Date of Birth', value: form.dateOfBirth ? new Date(form.dateOfBirth).toLocaleDateString('en-IN') : null },
+      { label: 'Age', value: calculateAge(form.dateOfBirth) !== null ? `${calculateAge(form.dateOfBirth)} years` : null },
+      { label: 'Gender', value: form.gender },
+      { label: 'Blood Group', value: form.bloodGroup },
+      { label: 'Phone', value: form.phone },
+      { label: 'Email', value: form.email },
+      { label: 'Emergency Contact', value: form.emergencyContact },
+      { label: 'Address', value: form.address },
+    ];
+
+    const clinicalFields = [
+      { label: 'Assigned Doctor', value: form.assignedDoctorName },
+      { label: 'Doctor Code', value: form.assignedDoctorCode },
+      { label: 'Allergies', value: form.allergies },
+      { label: 'Medical History', value: form.medicalHistory },
+    ];
+
+    const adminFields = [
+      { label: 'Insurance Provider', value: form.insuranceProvider },
+      { label: 'Insurance Number', value: form.insuranceNumber },
+      { label: 'Registered At', value: form.registeredAt ? new Date(form.registeredAt).toLocaleString('en-IN') : null },
+      { label: 'Last Updated', value: form.updatedAt ? new Date(form.updatedAt).toLocaleString('en-IN') : null },
+    ];
 
     const validatePhone = (phone) => {
-      const phoneRegex = /^(\+91|0)?[-\s]?[6-9]{1}\d{9}$/;
-      return phoneRegex.test(phone.replace(/\s/g, '').replace(/-/g, ''));
+      const phoneRegex = /^(?:\+91[-\s]?)?[6-9]\d{9}$/;
+      return phoneRegex.test(phone.trim());
     };
 
     const validateEmail = (email) => {
@@ -103,9 +176,9 @@ export default function LMPatients() {
         setError('Full name must be at least 3 characters.');
         return;
       }
-      const nameRegex = /^[a-zA-Z\s\-']+$/;
+      const nameRegex = /^[A-Za-z][A-Za-z\s.'-]{2,}$/;
       if (!nameRegex.test(form.fullName.trim())) {
-        setError('Full name can only contain letters, spaces, hyphens, and apostrophes.');
+        setError('Full name must contain only letters and be at least 3 characters.');
         return;
       }
       if (!form.phone.trim()) {
@@ -118,6 +191,24 @@ export default function LMPatients() {
       }
       if (form.email && !validateEmail(form.email)) {
         setError('Please enter a valid email address.');
+        return;
+      }
+      if (!form.assignedDoctorSpecialization) {
+        setError('Please select a doctor specialization.');
+        return;
+      }
+      if (canCreatePatientLogin && (form.username?.trim() || form.password?.trim())) {
+        if (!form.email?.trim()) {
+          setError('Email is required when creating patient login details.');
+          return;
+        }
+        if (!form.username?.trim() || !form.password?.trim()) {
+          setError('Both username and password are required when creating patient login details.');
+          return;
+        }
+      }
+      if (form.password?.trim() && form.password.trim().length < 6) {
+        setError('Password must be at least 6 characters.');
         return;
       }
       if (form.dateOfBirth) {
@@ -158,6 +249,64 @@ export default function LMPatients() {
         setSaving(false);
       }
     };
+
+    if (isViewMode) {
+      return (
+        <div className="modal-overlay" onClick={onClose}>
+          <div className="modal patient-profile-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header patient-profile-header">
+              <div>
+                <div className="patient-profile-kicker">{form.patientId}</div>
+                <h3>{form.fullName}</h3>
+                <div className="patient-profile-meta">
+                  <span className={`badge badge-${form.status?.toLowerCase()}`}>{form.status}</span>
+                  {form.assignedDoctorName && <span>{form.assignedDoctorName}</span>}
+                </div>
+              </div>
+              <button onClick={onClose} className="btn-close">x</button>
+            </div>
+
+            <div className="modal-body patient-profile-body">
+              <section className="profile-section">
+                <h4>Personal Information</h4>
+                <div className="profile-grid">
+                  {profileFields.map(item => (
+                    <div className="profile-field" key={item.label}>
+                      <span>{item.label}</span>
+                      <strong>{display(item.value)}</strong>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="profile-section">
+                <h4>Clinical Details</h4>
+                <div className="profile-grid">
+                  {clinicalFields.map(item => (
+                    <div className="profile-field" key={item.label}>
+                      <span>{item.label}</span>
+                      <strong>{display(item.value)}</strong>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="profile-section">
+                <h4>Administration</h4>
+                <div className="profile-grid">
+                  {adminFields.map(item => (
+                    <div className="profile-field" key={item.label}>
+                      <span>{item.label}</span>
+                      <strong>{display(item.value)}</strong>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="modal-overlay" onClick={onClose}>
@@ -229,6 +378,27 @@ export default function LMPatients() {
                   disabled={isViewMode}
                 />
               </div>
+              {canCreatePatientLogin && !isViewMode && (
+                <>
+                  <div>
+                    <label>Login Username</label>
+                    <input
+                      value={form.username || ''}
+                      onChange={e => set('username', e.target.value)}
+                      placeholder="Enter patient username"
+                    />
+                  </div>
+                  <div>
+                    <label>{patient ? 'New Login Password' : 'Login Password'}</label>
+                    <input
+                      type="password"
+                      value={form.password || ''}
+                      onChange={e => set('password', e.target.value)}
+                      placeholder={patient ? 'Leave blank to keep current password' : 'Optional patient login password'}
+                    />
+                  </div>
+                </>
+              )}
               <div>
                 <label>Address</label>
                 <input
@@ -248,11 +418,23 @@ export default function LMPatients() {
                 />
               </div>
               <div>
-                <label>Assigned Doctor</label>
-                <select value={form.assignedDoctorId} onChange={e => set('assignedDoctorId', e.target.value)} disabled={isViewMode}>
-                  <option value="">Select Doctor</option>
-                  {doctors.map(d => (
-                    <option key={d.id} value={d.id}>{d.fullName} ({d.specialization})</option>
+                <label>Doctor Specialization</label>
+                <select
+                  value={form.assignedDoctorSpecialization || ''}
+                  onChange={e => {
+                    setForm(p => ({
+                      ...p,
+                      assignedDoctorSpecialization: e.target.value,
+                      assignedDoctorId: '',
+                      assignedDoctorName: '',
+                      assignedDoctorCode: ''
+                    }));
+                  }}
+                  disabled={isViewMode}
+                >
+                  <option value="">Select Specialization</option>
+                  {doctorSpecializations.map(s => (
+                    <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
               </div>
@@ -325,8 +507,7 @@ export default function LMPatients() {
       doctorId: '',
       appointmentDate: '',
       reason: '',
-      notes: '',
-      status: 'SCHEDULED'
+      notes: ''
     });
     const [saving, setSaving] = useState(false);
     const [errors, setErrors] = useState({});
@@ -373,7 +554,10 @@ export default function LMPatients() {
       }
     };
 
-    const selectedDoc = doctors.find(d => String(d.id) === String(form.doctorId));
+    const filteredDoctors = patient?.assignedDoctorSpecialization
+      ? doctors.filter(d => d.specialization === patient.assignedDoctorSpecialization)
+      : doctors;
+    const selectedDoc = filteredDoctors.find(d => String(d.id) === String(form.doctorId));
 
     return (
       <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -400,7 +584,7 @@ export default function LMPatients() {
               </div>
               
               <div className="col-span-2">
-                <label>Doctor *</label>
+                <label>Doctor * {patient?.assignedDoctorSpecialization ? `(${patient.assignedDoctorSpecialization})` : ''}</label>
                 <select 
                   value={form.doctorId} 
                   onChange={e => { 
@@ -409,7 +593,7 @@ export default function LMPatients() {
                   }}
                 >
                   <option value="">Select Doctor</option>
-                  {doctors.map(d => (
+                  {filteredDoctors.map(d => (
                     <option key={d.id} value={d.id}>
                       {d.fullName} — {d.specialization}
                     </option>
@@ -445,14 +629,6 @@ export default function LMPatients() {
                   }} 
                 />
                 {errors.appointmentDate && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>{errors.appointmentDate}</div>}
-              </div>
-
-              <div>
-                <label>Status</label>
-                <select value={form.status} onChange={e => set('status', e.target.value)}>
-                  <option value="SCHEDULED">Scheduled</option>
-                  <option value="CONFIRMED">Cancel</option>
-                </select>
               </div>
 
               <div className="col-span-2">
@@ -491,6 +667,89 @@ export default function LMPatients() {
     return <div className="loading-screen">Loading patients...</div>;
   }
 
+  if (isPatient) {
+    const patient = patients[0];
+    const age = getAge(patient?.dateOfBirth);
+
+    if (!patient) {
+      return (
+        <div>
+          <div className="page-header">
+            <div>
+              <h1>My Profile</h1>
+              <p>No patient profile is linked to this login.</p>
+            </div>
+          </div>
+          <div className="card">
+            Please contact the receptionist or admin to link your patient record to your login account.
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="my-profile-page">
+        <div className="my-profile-hero">
+          <div className="my-profile-identity">
+            <div className="my-profile-avatar">
+              {patient.fullName?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'PT'}
+            </div>
+            <div>
+              <div className="my-profile-id">{patient.patientId || 'Patient profile'}</div>
+              <h1>{patient.fullName}</h1>
+              <div className="my-profile-tags">
+                <span className={`badge badge-${patient.status?.toLowerCase()}`}>{patient.status || 'ACTIVE'}</span>
+                {patient.bloodGroup && <span>{patient.bloodGroup}</span>}
+                {age !== null && <span>{age} years</span>}
+              </div>
+            <p>{patient.patientId || 'Patient profile'}{patient.status ? ` · ${patient.status}` : ''}</p>
+          </div>
+
+          </div>
+
+          <button className="btn btn-teal" onClick={() => { setBookingPatient(patient); setShowBookingModal(true); }}>
+            <Calendar size={14} /> Book Appointment
+          </button>
+        </div>
+
+        <div className="card my-profile-card">
+          <div className="form-grid">
+            <LMProfileField label="Full Name" value={patient.fullName} />
+            <LMProfileField label="Patient ID" value={patient.patientId} />
+            <LMProfileField label="Age / Date of Birth" value={`${age !== null ? `${age} years` : '-'}${patient.dateOfBirth ? ` / ${patient.dateOfBirth}` : ''}`} />
+            <LMProfileField label="Gender" value={patient.gender} />
+            <LMProfileField label="Blood Group" value={patient.bloodGroup} />
+            <LMProfileField label="Phone" value={patient.phone} />
+            <LMProfileField label="Email" value={patient.email} />
+            <LMProfileField label="Emergency Contact" value={patient.emergencyContact} />
+            <LMProfileField label="Doctor Specialization" value={patient.assignedDoctorSpecialization || patient.assignedDoctorName} />
+            <LMProfileField label="Status" value={patient.status} />
+            <div className="col-span-2">
+              <LMProfileField label="Address" value={patient.address} />
+            </div>
+            <div className="col-span-2">
+              <LMProfileField label="Allergies" value={patient.allergies} />
+            </div>
+            <div className="col-span-2">
+              <LMProfileField label="Medical History" value={patient.medicalHistory} />
+            </div>
+            <LMProfileField label="Insurance Provider" value={patient.insuranceProvider} />
+            <LMProfileField label="Insurance Number" value={patient.insuranceNumber} />
+          </div>
+        </div>
+
+        {showBookingModal && (
+          <LMAppointmentBookingModal
+            patient={bookingPatient}
+            doctors={doctors}
+            onClose={() => { setShowBookingModal(false); setBookingPatient(null); }}
+            onSave={load}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
 
@@ -502,14 +761,14 @@ export default function LMPatients() {
         </div>
          
         <div style={{ display: 'flex', gap: '10px' }}>
-          {isPatient && patients.length > 0 && (
+          {isPatient && canBookAppointment && patients.length > 0 && (
             <button className="btn btn-teal" onClick={() => { setBookingPatient(patients[0]); setShowBookingModal(true); }}>
               <Calendar size={14} /> Book Appointment
             </button>
           )}
           {canManagePatients && (
             <button className="btn btn-primary" onClick={() => { setEditingPatient(null); setShowModal(true); setViewMode(false); }}>
-              <UserPlus size={14} /> {isPatient ? 'Add My Record' : 'Add Patient'}
+              <UserPlus size={14} /> Add Patient
             </button>
           )}
         </div>
@@ -559,7 +818,7 @@ export default function LMPatients() {
               <th>Age / Gender</th>
               <th>Blood</th>
               <th>Phone</th>
-              <th>Doctor</th>
+              <th>Specialization</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
@@ -591,7 +850,7 @@ export default function LMPatients() {
 
                     <td>{p.phone}</td>
 
-                    <td>{p.assignedDoctorName || '—'}</td>
+                    <td>{p.assignedDoctorSpecialization || p.assignedDoctorName || '—'}</td>
 
                     <td>
                       <span className={`badge badge-${p.status?.toLowerCase()}`}>
@@ -601,11 +860,11 @@ export default function LMPatients() {
 
                     <td>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <button className="btn btn-sm" onClick={() => { setEditingPatient(p); setShowModal(true); setViewMode(true); }}>
+                        <button className="btn btn-sm" onClick={() => { setEditingPatient(p); setShowModal(true); setViewMode(true); }} title="View Patient">
                           <Eye size={12} />
                         </button>
 
-                        {(isPatient || (canManagePatients && !isPatient)) && (
+                        {canBookAppointment && (
                           <button 
                             className="btn btn-sm btn-teal" 
                             onClick={() => { setBookingPatient(p); setShowBookingModal(true); }}
@@ -615,7 +874,7 @@ export default function LMPatients() {
                           </button>
                         )}
 
-                        {canManagePatients && !isPatient && (
+                        {canManagePatients && (
                           <>
                             <button className="btn btn-sm" onClick={() => { setEditingPatient(p); setShowModal(true); setViewMode(false); }}>
                               <Edit2 size={12} />

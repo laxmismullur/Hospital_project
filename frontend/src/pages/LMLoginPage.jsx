@@ -2,14 +2,6 @@ import React, { useState } from 'react';
 import { useLMAuth } from '../context/LMAuthContext';
 import { useNavigate } from 'react-router-dom';
 
-const DEMO_USERS = [
-  { label: 'Admin', username: 'lm_admin', password: 'admin123', color: '#f59e0b' },
-  { label: 'Doctor', username: 'lm_doctor', password: 'doctor123', color: '#14b8a6' },
-  { label: 'Nurse', username: 'lm_nurse', password: 'nurse123', color: '#a855f7' },
-  { label: 'Reception', username: 'lm_reception', password: 'recep123', color: '#3b82f6' },
-  { label: 'Patient', username: 'lm_patient', password: 'patient123', color: '#22c55e' },
-];
-
 export default function LMLoginPage() {
   const { login } = useLMAuth();
   const navigate = useNavigate();
@@ -30,12 +22,10 @@ export default function LMLoginPage() {
     }
   };
 
-  const fillDemo = (u) => setForm({ username: u.username, password: u.password });
-
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', background: '#0d1117', fontFamily: 'DM Sans, sans-serif' }}>
+    <div className="lm-login-page" style={{ minHeight: '100vh', display: 'flex', background: '#0d1117', fontFamily: 'DM Sans, sans-serif' }}>
       {/* Left Panel */}
-      <div style={{ flex: '0 0 480px', background: '#0d1117', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '60px 56px', borderRight: '1px solid #2d3748', position: 'relative', overflow: 'hidden' }}>
+      <div className="lm-login-hero" style={{ flex: '0 0 480px', background: '#0d1117', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '60px 56px', borderRight: '1px solid #2d3748', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: '-80px', left: '-80px', width: '300px', height: '300px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(245,158,11,0.06) 0%, transparent 70%)' }} />
         <div style={{ position: 'absolute', bottom: '-60px', right: '-60px', width: '240px', height: '240px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(20,184,166,0.06) 0%, transparent 70%)' }} />
 
@@ -67,8 +57,8 @@ export default function LMLoginPage() {
       </div>
 
       {/* Right Panel */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
-        <div style={{ width: '100%', maxWidth: '380px' }}>
+      <div className="lm-login-form-shell" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
+        <div className="lm-login-form-card" style={{ width: '100%', maxWidth: '380px' }}>
           <h2 style={{ fontSize: '22px', fontWeight: '600', color: '#f0f4f8', marginBottom: '6px' }}>Sign in</h2>
           <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '32px' }}>Access your hospital dashboard</p>
 
@@ -95,19 +85,9 @@ export default function LMLoginPage() {
             </button>
           </form>
 
-          <div style={{ marginTop: '32px' }}>
-            <p style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>Quick Access — Demo Accounts</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              {DEMO_USERS.map(u => (
-                <button key={u.username} onClick={() => fillDemo(u)} style={{ background: '#161b22', border: '1px solid #2d3748', borderRadius: '8px', padding: '10px 12px', cursor: 'pointer', textAlign: 'left', transition: 'border-color 0.15s', fontFamily: 'DM Sans, sans-serif' }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = u.color}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = '#2d3748'}>
-                  <div style={{ fontSize: '11px', fontWeight: '600', color: u.color, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{u.label}</div>
-                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', fontFamily: 'Space Mono, monospace' }}>{u.username}</div>
-                </button>
-              ))}
-            </div>
-          </div>
+          <p style={{ marginTop: '24px', color: '#64748b', fontSize: '12px', lineHeight: 1.5 }}>
+            Accounts are created by the administrator from Staff Management.
+          </p>
         </div>
       </div>
     </div>
