@@ -44,7 +44,7 @@ public class LMMedicalRecordController {
         LMUser user = getCurrentUser(authentication);
         if (user.getRole() == LMRole.DOCTOR) {
             LMDoctor doctor = getDoctorProfile(user);
-            return medicalRecordRepository.findByDoctorId(doctor.getId());
+            return medicalRecordRepository.findByDoctorIdOrderByRecordDateDescIdDesc(doctor.getId());
         }
         if (user.getRole() == LMRole.PATIENT) {
             List<Long> patientIds = patientRepository.findByUserId(user.getId()).stream()
@@ -53,7 +53,7 @@ public class LMMedicalRecordController {
             if (patientIds.isEmpty()) return List.of();
             return medicalRecordRepository.findByPatientIdInOrderByRecordDateDesc(patientIds);
         }
-        return medicalRecordRepository.findAll();
+        return medicalRecordRepository.findAllByOrderByRecordDateDescIdDesc();
     }
 
     @GetMapping("/{id}")
@@ -70,7 +70,7 @@ public class LMMedicalRecordController {
 
     @GetMapping("/doctor/{doctorId}")
     public List<LMMedicalRecord> getByDoctor(@PathVariable Long doctorId) {
-        return medicalRecordRepository.findByDoctorId(doctorId);
+        return medicalRecordRepository.findByDoctorIdOrderByRecordDateDescIdDesc(doctorId);
     }
 
     @PostMapping

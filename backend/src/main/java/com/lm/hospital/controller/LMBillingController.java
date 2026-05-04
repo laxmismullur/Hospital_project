@@ -39,9 +39,9 @@ public class LMBillingController {
                     .map(LMPatient::getId)
                     .toList();
             if (patientIds.isEmpty()) return List.of();
-            return billingRepository.findByPatientIdIn(patientIds);
+            return billingRepository.findByPatientIdInOrderByCreatedAtDescIdDesc(patientIds);
         }
-        return billingRepository.findAll();
+        return billingRepository.findAllByOrderByCreatedAtDescIdDesc();
     }
 
     @GetMapping("/{id}")
@@ -53,12 +53,12 @@ public class LMBillingController {
 
     @GetMapping("/patient/{patientId}")
     public List<LMBilling> getByPatient(@PathVariable Long patientId) {
-        return billingRepository.findByPatientId(patientId);
+        return billingRepository.findByPatientIdOrderByCreatedAtDescIdDesc(patientId);
     }
 
     @GetMapping("/pending")
     public List<LMBilling> getPendingBills() {
-        return billingRepository.findByPaymentStatus(LMPaymentStatus.PENDING);
+        return billingRepository.findByPaymentStatusOrderByCreatedAtDescIdDesc(LMPaymentStatus.PENDING);
     }
 
     @PostMapping

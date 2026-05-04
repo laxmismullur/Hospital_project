@@ -42,12 +42,12 @@ public class LMAppointmentController {
 
     @GetMapping("/doctor/{doctorId}")
     public List<LMAppointment> getByDoctor(@PathVariable Long doctorId) {
-        return appointmentRepository.findByDoctorId(doctorId);
+        return appointmentRepository.findByDoctorIdOrderByCreatedAtDescIdDesc(doctorId);
     }
 
     @GetMapping("/patient/{patientId}")
     public List<LMAppointment> getByPatient(@PathVariable Long patientId) {
-        return appointmentRepository.findByPatientId(patientId);
+        return appointmentRepository.findByPatientIdOrderByCreatedAtDescIdDesc(patientId);
     }
 
     @GetMapping("/today")
@@ -265,16 +265,16 @@ public class LMAppointmentController {
 
         if (user.getRole() == LMRole.DOCTOR) {
             LMDoctor doctor = getDoctorProfile(user);
-            return appointmentRepository.findByDoctorId(doctor.getId());
+            return appointmentRepository.findByDoctorIdOrderByCreatedAtDescIdDesc(doctor.getId());
         }
 
         if (user.getRole() == LMRole.PATIENT) {
             List<Long> patientIds = getCurrentPatientIds(user);
             if (patientIds.isEmpty()) return List.of();
-            return appointmentRepository.findByPatientIdIn(patientIds);
+            return appointmentRepository.findByPatientIdInOrderByCreatedAtDescIdDesc(patientIds);
         }
 
-        return appointmentRepository.findAll();
+        return appointmentRepository.findAllByOrderByCreatedAtDescIdDesc();
     }
 
     private LMUser getCurrentUser(Authentication authentication) {

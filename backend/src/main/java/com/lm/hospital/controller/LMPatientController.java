@@ -46,16 +46,16 @@ public class LMPatientController {
     public List<LMPatient> getAllPatients(Authentication authentication) {
         LMUser user = getCurrentUser(authentication);
         if (user.getRole().name().equals("PATIENT")) {
-            return withLoginUsernames(patientRepository.findByUserId(user.getId()));
+            return withLoginUsernames(patientRepository.findByUserIdOrderByRegisteredAtDescIdDesc(user.getId()));
         }
         if (user.getRole().name().equals("DOCTOR")) {
             LMDoctor doctor = doctorRepository.findByUserId(user.getId())
                     .or(() -> doctorRepository.findByEmail(user.getEmail()))
                     .or(() -> doctorRepository.findByUsername(user.getUsername()))
                     .orElseThrow(() -> new RuntimeException("Doctor profile not found"));
-            return withLoginUsernames(patientRepository.findByAssignedDoctorId(doctor.getId()));
+            return withLoginUsernames(patientRepository.findByAssignedDoctorIdOrderByRegisteredAtDescIdDesc(doctor.getId()));
         }
-        return withLoginUsernames(patientRepository.findAll());
+        return withLoginUsernames(patientRepository.findAllByOrderByRegisteredAtDescIdDesc());
     }
 
     @GetMapping("/{id}")
@@ -83,14 +83,14 @@ public class LMPatientController {
 
     @GetMapping("/doctor/{doctorId}")
     public List<LMPatient> getPatientsByDoctor(@PathVariable Long doctorId) {
-        return patientRepository.findByAssignedDoctorId(doctorId);
+        return patientRepository.findByAssignedDoctorIdOrderByRegisteredAtDescIdDesc(doctorId);
     }
 
     @GetMapping("/user")
     @PreAuthorize("hasRole('PATIENT')")
     public List<LMPatient> getPatientsByCurrentUser(Authentication authentication) {
         LMUser user = getCurrentUser(authentication);
-        return patientRepository.findByUserId(user.getId());
+        return patientRepository.findByUserIdOrderByRegisteredAtDescIdDesc(user.getId());
     }
 
     @PostMapping

@@ -10,6 +10,10 @@ public interface LMAppointmentRepository extends JpaRepository<LMAppointment, Lo
     List<LMAppointment> findByDoctorId(Long doctorId);
     List<LMAppointment> findByPatientId(Long patientId);
     List<LMAppointment> findByPatientIdIn(List<Long> patientIds);
+    List<LMAppointment> findByDoctorIdOrderByCreatedAtDescIdDesc(Long doctorId);
+    List<LMAppointment> findByPatientIdOrderByCreatedAtDescIdDesc(Long patientId);
+    List<LMAppointment> findByPatientIdInOrderByCreatedAtDescIdDesc(List<Long> patientIds);
+    List<LMAppointment> findAllByOrderByCreatedAtDescIdDesc();
     List<LMAppointment> findByStatus(LMAppointmentStatus status);
     List<LMAppointment> findByAppointmentDateBetween(LocalDateTime start, LocalDateTime end);
     List<LMAppointment> findByDoctorIdAndAppointmentDateBetween(Long doctorId, LocalDateTime start, LocalDateTime end);

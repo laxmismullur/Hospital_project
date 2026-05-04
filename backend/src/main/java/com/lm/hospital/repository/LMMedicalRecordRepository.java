@@ -8,4 +8,6 @@ public interface LMMedicalRecordRepository extends JpaRepository<LMMedicalRecord
     List<LMMedicalRecord> findByPatientIdOrderByRecordDateDesc(Long patientId);
     List<LMMedicalRecord> findByPatientIdInOrderByRecordDateDesc(List<Long> patientIds);
     List<LMMedicalRecord> findByDoctorId(Long doctorId);
+    List<LMMedicalRecord> findByDoctorIdOrderByRecordDateDescIdDesc(Long doctorId);
+    List<LMMedicalRecord> findAllByOrderByRecordDateDescIdDesc();
 }

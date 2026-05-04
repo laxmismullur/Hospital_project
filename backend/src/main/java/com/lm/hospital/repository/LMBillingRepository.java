@@ -12,6 +12,10 @@ public interface LMBillingRepository extends JpaRepository<LMBilling, Long> {
     List<LMBilling> findByPatientId(Long patientId);
     List<LMBilling> findByPatientIdIn(List<Long> patientIds);
     List<LMBilling> findByPaymentStatus(LMPaymentStatus status);
+    List<LMBilling> findByPatientIdOrderByCreatedAtDescIdDesc(Long patientId);
+    List<LMBilling> findByPatientIdInOrderByCreatedAtDescIdDesc(List<Long> patientIds);
+    List<LMBilling> findByPaymentStatusOrderByCreatedAtDescIdDesc(LMPaymentStatus status);
+    List<LMBilling> findAllByOrderByCreatedAtDescIdDesc();
     Optional<LMBilling> findByInvoiceNumber(String invoiceNumber);
     long countByPaymentStatus(LMPaymentStatus status);
 
